@@ -9,6 +9,39 @@ st.set_page_config(
     layout="wide"
 )
 
+import base64
+
+def get_base64(file_path):
+    with open(file_path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+bg_image = get_base64("banner_bg.png")
+
+st.markdown(
+    f"""
+    <style>
+
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url("data:image/png;base64,{bg_image}");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 700px;
+        opacity: 0.04;
+        pointer-events: none;
+        z-index: -1;
+    }}
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 @st.cache_data
 def load_data():
     master = pd.read_excel("Master Stock.xlsx")
