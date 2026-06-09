@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -21,12 +22,12 @@ def load_data():
 
 master, risk = load_data()
 
-# Adjust top padding so heading isn't cut off
+# Adjust top padding so heading is visible and not cut
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 0.5rem;   /* small space so text shows fully */
+        padding-top: 1rem;   /* enough space so heading isn't clipped */
     }
     </style>
     """,
