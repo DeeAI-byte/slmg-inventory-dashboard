@@ -6,7 +6,7 @@ from io import BytesIO
 # Page config
 st.set_page_config(
     page_title="SLMG Inventory Hub",
-    page_icon="banner_bg.png",
+    page_icon="banner_bg.png",   # still keeps favicon in browser tab
     layout="wide"
 )
 
@@ -20,9 +20,6 @@ def load_data():
     return master, risk
 
 master, risk = load_data()
-
-# Show logo only at the top
-st.image("banner_bg.png", width=80)
 
 # Remove default Streamlit top padding
 st.markdown(
