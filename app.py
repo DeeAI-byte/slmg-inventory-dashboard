@@ -21,12 +21,10 @@ def load_data():
 
 master, risk = load_data()
 
-# Top bar with logo + heading (only once)
-col1 = st.columns([1,0])
-
+# Top bar with logo only (no duplicate heading)
+col1, _ = st.columns([1,15])
 with col1:
     st.image("banner_bg.png", width=80)
-    )
 
 # Remove default Streamlit top padding
 st.markdown(
