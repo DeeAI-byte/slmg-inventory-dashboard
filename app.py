@@ -24,9 +24,6 @@ col1, col2 = st.columns([1,6])
 with col1:
     st.image("banner_bg.png", width=100)
 
-with col2:
-    st.title("Coca-Cola | SLMG Beverages")
-
 # Data prep
 master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
 master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
