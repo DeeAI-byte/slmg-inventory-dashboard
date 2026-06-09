@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -27,12 +26,16 @@ st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 1rem;   /* enough space so heading isn't clipped */
+        padding-top: 1.5rem;   /* inch down so text shows fully */
     }
     </style>
     """,
     unsafe_allow_html=True
 )
+
+# ---- Now start your data prep ----
+master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
+master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
 
 # Data prep
 master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
