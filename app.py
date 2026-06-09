@@ -3,12 +3,14 @@ import pandas as pd
 import plotly.express as px
 from io import BytesIO
 
+# Page config
 st.set_page_config(
     page_title="SLMG Inventory Hub",
     page_icon="banner_bg.png",
     layout="wide"
 )
 
+# Load data
 @st.cache_data
 def load_data():
     master = pd.read_excel("Master Stock.xlsx")
@@ -19,23 +21,35 @@ def load_data():
 
 master, risk = load_data()
 
+# Top bar with logo + heading (only once)
 col1, col2 = st.columns([1,15])
-
 with col1:
     st.image("banner_bg.png", width=50)
-
 with col2:
     st.markdown(
         """
-        <h1 style="    
+        <h1 style="
         margin-top:0px;
-        margin-bottom:-20px;
+        margin-bottom:0px;
+        font-size:28px;
         ">
         Coca-Cola | SLMG Beverages
         </h1>
         """,
         unsafe_allow_html=True
     )
+
+# Remove default Streamlit top padding
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 0rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # Data prep
 master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
