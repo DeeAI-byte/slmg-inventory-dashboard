@@ -3,7 +3,11 @@ import pandas as pd
 import plotly.express as px
 from io import BytesIO
 
-st.set_page_config(page_title="SLMG Inventory Hub", layout="wide")
+st.set_page_config(
+    page_title="SLMG Inventory Hub",
+    page_icon="banner_bg.png",
+    layout="wide"
+)
 
 @st.cache_data
 def load_data():
