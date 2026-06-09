@@ -19,10 +19,20 @@ def load_data():
 
 master, risk = load_data()
 
-col1, col2 = st.columns([1,6])
-
-with col1:
-    st.image("banner_bg.png", width=100)
+st.markdown(
+    """
+    <div style="display:flex;
+                align-items:center;
+                margin-top:-20px;
+                margin-bottom:-20px;">
+        <img src="banner_bg.png" width="60">
+        <h1 style="margin-left:15px;">
+            Coca-Cola | SLMG Beverages
+        </h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # Data prep
 master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
