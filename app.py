@@ -22,16 +22,17 @@ def load_data():
 master, risk = load_data()
 
 # Top bar with logo + heading (only once)
-col1, col2 = st.columns([1,15])
+col1, col2 = st.columns([1,8])
+
 with col1:
-    st.image("banner_bg.png", width=50)
+    st.image("banner_bg.png", width=80)
+
 with col2:
     st.markdown(
         """
         <h1 style="
-        margin-top:0px;
+        margin-top:15px;
         margin-bottom:0px;
-        font-size:28px;
         ">
         Coca-Cola | SLMG Beverages
         </h1>
