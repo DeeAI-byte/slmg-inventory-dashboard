@@ -6,7 +6,7 @@ from io import BytesIO
 # Page config
 st.set_page_config(
     page_title="SLMG Inventory Hub",
-    page_icon="banner_bg.png",   # favicon in browser tab
+    page_icon="banner_bg.png",   # favicon in browser tab + download
     layout="wide"
 )
 
