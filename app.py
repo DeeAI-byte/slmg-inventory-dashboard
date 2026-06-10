@@ -21,6 +21,17 @@ def load_data():
 
 master, risk = load_data()
 
+# ---- Clean up date columns to remove time ----
+date_cols_master = ["MFG Date", "EXP Date", "DOD Date"]
+for col in date_cols_master:
+    if col in master.columns:
+        master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
+
+date_cols_risk = ["MFG Date", "EXP Date", "BBD Date", "DOD Date"]
+for col in date_cols_risk:
+    if col in risk.columns:
+        risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
+
 # Adjust top padding so heading is visible and not cut
 st.markdown(
     """
