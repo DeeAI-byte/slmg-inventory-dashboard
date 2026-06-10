@@ -27,7 +27,7 @@ for col in date_cols_master:
     if col in master.columns:
         master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
 
-date_cols_risk = ["MFG Date", "EXP Date", "BBD Date", "DOD Date"]
+date_cols_risk = ["MFG Date", "EXP Date", "BBD Date", "DOD Date", "BBD/Expiry"]
 for col in date_cols_risk:
     if col in risk.columns:
         risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
