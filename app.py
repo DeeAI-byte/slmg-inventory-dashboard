@@ -21,7 +21,7 @@ def load_data():
 
 master, risk = load_data()
 
-# ---- Clean up date columns to remove time ----
+# ---- Clean up date columns ----
 date_cols_master = ["MFG Date", "EXP Date", "DOD Date"]
 for col in date_cols_master:
     if col in master.columns:
@@ -32,27 +32,27 @@ for col in date_cols_risk:
     if col in risk.columns:
         risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
 
-# Adjust top padding so heading is visible and not cut
+# Adjust top padding so heading is visible
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 1.5rem;   /* inch down so text shows fully */
+        padding-top: 1.5rem;
     }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# ---- Now start your data prep ----
-master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
-master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
-
-# Data prep
-master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
+# ---- Data prep ----
 master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
 master["Total"] = pd.to_numeric(master["Total"], errors="coerce").fillna(0).astype(int)
-master["ShelfLifePct"] = (master["Shelflife"].fillna(0).mul(100).round(0)).astype(int)
+
+# ShelfLifePct calculation (based on max shelf life in dataset)
+if "Shelflife in Days" in master.columns and master["Shelflife in Days"].max() > 0:
+    master["ShelfLifePct"] = ((master["Shelflife in Days"] / master["Shelflife in Days"].max()) * 100).round(0).astype(int)
+else:
+    master["ShelfLifePct"] = 0
 
 # Unified shelf life status logic
 master["SL Status"] = "Safe"
@@ -75,7 +75,7 @@ def export_excel(df):
         df.to_excel(writer, index=False)
     return output.getvalue()
 
-# Clean heading at top
+# Heading
 st.markdown("<h2 style='text-align:center; font-family:Georgia; font-size:32px;'>Coca‑Cola | SLMG Beverages</h2>", unsafe_allow_html=True)
 
 tab1, tab2 = st.tabs(["Stock Overview", "Risk Stock Overview"])
@@ -110,19 +110,24 @@ with tab1:
 
     st.divider()
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    # KPI cards
+    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
     c1.metric("Total Stock", f"{int(filtered['Total'].sum()):,}")
     c2.metric("Unique SKUs", int(filtered["Item Description"].nunique()))
     c3.metric("Sites", int(filtered["Site"].nunique()))
     c4.metric("Warehouses", int(filtered["Warehouse"].nunique()))
-    c5.metric("Low SL (<30)", int(filtered[filtered["Shelflife in Days"] < 30]["Total"].sum()))
+    c5.metric("Critical SL (<30)", int(filtered[filtered["Shelflife in Days"] < 30]["Total"].sum()))
+    c6.metric("Warning SL (31-90)", int(filtered[(filtered["Shelflife in Days"] >= 31) & (filtered["Shelflife in Days"] <= 90)]["Total"].sum()))
+    c7.metric("Safe SL (>90)", int(filtered[filtered["Shelflife in Days"] > 90]["Total"].sum()))
 
     st.divider()
 
+    # Stock by site chart
     stock_site = filtered.groupby("Site")["Total"].sum().reset_index().sort_values("Total", ascending=False)
     fig = px.bar(stock_site, x="Site", y="Total", text="Total", title="Stock By Site")
     st.plotly_chart(fig, use_container_width=True, key="stock_by_site")
 
+    # Top SKUs
     left, right = st.columns(2)
     with left:
         st.subheader("Top 5 SKUs By Inventory")
@@ -144,6 +149,7 @@ with tab1:
     st.subheader("Detail Table")
     st.dataframe(detail, hide_index=True, use_container_width=True, height=500)
     st.download_button("Export to Excel", export_excel(detail), file_name="Stock_Overview.xlsx")
+
 with tab2:
     st.header("Risk Stock Overview")
 
@@ -175,10 +181,10 @@ with tab2:
         # KPI CARDS
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Total Qty", f"{int(rf['Quantity'].sum()):,}")
-        c2.metric("Critical BBD", f"{int(rf[rf['Days to BBD'] < 30]['Quantity'].sum()):,}")
-        c3.metric("Warning BBD", f"{int(rf[(rf['Days to BBD'] >= 31) & (rf['Days to BBD'] <= 90)]['Quantity'].sum()):,}")
-        c4.metric("Safe BBD", f"{int(rf[rf['Days to BBD'] > 90]['Quantity'].sum()):,}")
-        c5.metric("Critical SBD", f"{int(rf[rf['Days to SBD'] < 30]['Quantity'].sum()):,}")
+        c2.metric("Critical BBD (<30)", f"{int(rf[rf['Days to BBD'] < 30]['Quantity'].sum()):,}")
+        c3.metric("Warning BBD (31-90)", f"{int(rf[(rf['Days to BBD'] >= 31) & (rf['Days to BBD'] <= 90)]['Quantity'].sum()):,}")
+        c4.metric("Safe BBD (>90)", f"{int(rf[rf['Days to BBD'] > 90]['Quantity'].sum()):,}")
+        c5.metric("Critical SBD (<30)", f"{int(rf[rf['Days to SBD'] < 30]['Quantity'].sum()):,}")
 
         st.divider()
 
@@ -224,3 +230,6 @@ with tab2:
             rf[col] = rf[col].astype(int)
         st.dataframe(rf, hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(rf), file_name="Risk_Overview.xlsx")
+
+
+
