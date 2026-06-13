@@ -45,20 +45,21 @@ st.markdown(
 )
 
 # ---- Data prep ----
-master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
 master["Total"] = pd.to_numeric(master["Total"], errors="coerce").fillna(0).astype(int)
 
-# Unified shelf life status logic
-master["SL Status"] = "Safe"
-master.loc[master["Shelflife in Days"] < 30, "SL Status"] = "Critical"
-master.loc[(master["Shelflife in Days"] >= 31) & (master["Shelflife in Days"] <= 90), "SL Status"] = "Warning"
+# Status logic based on Shelflife %
+if "Shelflife" in master.columns:
+    master["Shelflife"] = master["Shelflife"].astype(float) * 100
+    master["SL Status"] = "Safe"
+    master.loc[master["Shelflife"] < 30, "SL Status"] = "Critical"
+    master.loc[(master["Shelflife"] >= 31) & (master["Shelflife"] <= 90), "SL Status"] = "Warning"
 
 risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).astype(int)
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
 risk["Days to BBD"] = pd.to_numeric(risk["Days to BBD"], errors="coerce").fillna(0).astype(int)
 risk["Days to SBD"] = pd.to_numeric(risk["Days to SBD"], errors="coerce").fillna(0).astype(int)
 
-# Unified BBD status logic
+# Unified BBD status logic (still based on days)
 risk["BBD Status"] = "Safe"
 risk.loc[risk["Days to BBD"] < 30, "BBD Status"] = "Critical"
 risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
@@ -103,15 +104,15 @@ with tab1:
 
     st.divider()
 
-    # KPI cards
+    # KPI cards (based on Shelflife %)
     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
     c1.metric("Total Stock", f"{int(filtered['Total'].sum()):,}")
     c2.metric("Unique SKUs", int(filtered["Item Description"].nunique()))
     c3.metric("Sites", int(filtered["Site"].nunique()))
     c4.metric("Warehouses", int(filtered["Warehouse"].nunique()))
-    c5.metric("Critical SL (<30)", int(filtered[filtered["Shelflife in Days"] < 30]["Total"].sum()))
-    c6.metric("Warning SL (31-90)", int(filtered[(filtered["Shelflife in Days"] >= 31) & (filtered["Shelflife in Days"] <= 90)]["Total"].sum()))
-    c7.metric("Safe SL (>90)", int(filtered[filtered["Shelflife in Days"] > 90]["Total"].sum()))
+    c5.metric("Critical SL (<30%)", int(filtered[filtered["Shelflife"] < 30]["Total"].sum()))
+    c6.metric("Warning SL (31-90%)", int(filtered[(filtered["Shelflife"] >= 31) & (filtered["Shelflife"] <= 90)]["Total"].sum()))
+    c7.metric("Safe SL (>=90%)", int(filtered[filtered["Shelflife"] >= 90]["Total"].sum()))
 
     st.divider()
 
@@ -128,17 +129,16 @@ with tab1:
         top_inventory["Total"] = top_inventory["Total"].astype(int)
         st.dataframe(top_inventory, hide_index=True, use_container_width=True)
     with right:
-        st.subheader("Top 5 SKUs — Least Shelf Life")
-        least_sl = filtered[["Item Description", "Shelflife in Days", "Total"]].sort_values("Shelflife in Days").head(5)
-        least_sl["Shelflife in Days"] = least_sl["Shelflife in Days"].astype(int)
+        st.subheader("Top 5 SKUs — Lowest Shelf Life %")
+        least_sl = filtered[["Item Description", "Shelflife", "Total"]].sort_values("Shelflife").head(5)
+        least_sl["Shelflife"] = least_sl["Shelflife"].round(0).astype(int).astype(str) + "%"
         least_sl["Total"] = least_sl["Total"].astype(int)
         st.dataframe(least_sl, hide_index=True, use_container_width=True)
 
     st.divider()
     detail = filtered.copy()
-    # Format Shelflife column as percentage string if present
     if "Shelflife" in detail.columns:
-        detail["Shelflife"] = (detail["Shelflife"].astype(float) * 100).round(0).astype(int).astype(str) + "%"
+        detail["Shelflife"] = detail["Shelflife"].round(0).astype(int).astype(str) + "%"
     for col in detail.select_dtypes(include=["int64","float64"]).columns:
         if col != "Shelflife":
             detail[col] = detail[col].astype(int)
@@ -176,10 +176,10 @@ with tab2:
         # KPI CARDS
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Total Qty", f"{int(rf['Quantity'].sum()):,}")
-        c2.metric("Critical BBD (<30)", f"{int(rf[rf['Days to BBD'] < 30]['Quantity'].sum()):,}")
-        c3.metric("Warning BBD (31-90)", f"{int(rf[(rf['Days to BBD'] >= 31) & (rf['Days to BBD'] <= 90)]['Quantity'].sum()):,}")
-        c4.metric("Safe BBD (>90)", f"{int(rf[rf['Days to BBD'] > 90]['Quantity'].sum()):,}")
-        c5.metric("Critical SBD (<30)", f"{int(rf[rf['Days to SBD'] < 30]['Quantity'].sum()):,}")
+        c2.metric("Critical BBD (<30 days)", f"{int(rf[rf['Days to BBD'] < 30]['Quantity'].sum()):,}")
+        c3.metric("Warning BBD (31-90 days)", f"{int(rf[(rf['Days to BBD'] >= 31) & (rf['Days to BBD'] <= 90)]['Quantity'].sum()):,}")
+        c4.metric("Safe BBD (>90 days)", f"{int(rf[rf['Days to BBD'] > 90]['Quantity'].sum()):,}")
+        c5.metric("Critical SBD (<30 days)", f"{int(rf[rf['Days to SBD'] < 30]['Quantity'].sum()):,}")
 
         st.divider()
 
