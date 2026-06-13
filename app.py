@@ -53,14 +53,18 @@ master["Shelflife"] = pd.to_numeric(master["Shelflife"], errors="coerce")
 master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
 master["Total"] = pd.to_numeric(master["Total"], errors="coerce").fillna(0).astype(int)
 master["ShelfLifePct"] = (master["Shelflife"].fillna(0).mul(100).round(0)).astype(int)
+
+# Unified shelf life status logic
 master["SL Status"] = "Safe"
 master.loc[master["Shelflife in Days"] < 30, "SL Status"] = "Critical"
-master.loc[(master["Shelflife in Days"] >= 31) & (master["Shelflife in Days"] <= 60), "SL Status"] = "Warning"
+master.loc[(master["Shelflife in Days"] >= 31) & (master["Shelflife in Days"] <= 90), "SL Status"] = "Warning"
 
 risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).astype(int)
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
 risk["Days to BBD"] = pd.to_numeric(risk["Days to BBD"], errors="coerce").fillna(0).astype(int)
 risk["Days to SBD"] = pd.to_numeric(risk["Days to SBD"], errors="coerce").fillna(0).astype(int)
+
+# Unified BBD status logic
 risk["BBD Status"] = "Safe"
 risk.loc[risk["Days to BBD"] < 30, "BBD Status"] = "Critical"
 risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
