@@ -136,8 +136,9 @@ with tab1:
 
     st.divider()
     detail = filtered.copy()
-    # Keep ShelfLifePct as provided by Excel
-    detail["ShelfLifePct"] = detail["ShelfLifePct"].astype(str) + "%"
+    # Keep Shelflife column from Excel as-is
+    if "Shelflife" in detail.columns:
+        detail["Shelflife"] = detail["Shelflife"].astype(str)
     for col in detail.select_dtypes(include=["int64","float64"]).columns:
         detail[col] = detail[col].astype(int)
     st.subheader("Detail Table")
