@@ -136,11 +136,12 @@ with tab1:
 
     st.divider()
     detail = filtered.copy()
-    # Keep Shelflife column from Excel as-is
+    # Format Shelflife column as percentage string if present
     if "Shelflife" in detail.columns:
-        detail["Shelflife"] = detail["Shelflife"].astype(str)
+        detail["Shelflife"] = (detail["Shelflife"].astype(float) * 100).round(0).astype(int).astype(str) + "%"
     for col in detail.select_dtypes(include=["int64","float64"]).columns:
-        detail[col] = detail[col].astype(int)
+        if col != "Shelflife":
+            detail[col] = detail[col].astype(int)
     st.subheader("Detail Table")
     st.dataframe(detail, hide_index=True, use_container_width=True, height=500)
     st.download_button("Export to Excel", export_excel(detail), file_name="Stock_Overview.xlsx")
