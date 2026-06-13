@@ -6,7 +6,7 @@ from io import BytesIO
 # Page config
 st.set_page_config(
     page_title="SLMG Inventory Hub",
-    page_icon="banner_bg.png",   # favicon in browser tab + download
+    page_icon="banner_bg.png",
     layout="wide"
 )
 
@@ -48,12 +48,6 @@ st.markdown(
 master["Shelflife in Days"] = pd.to_numeric(master["Shelflife in Days"], errors="coerce").fillna(0).astype(int)
 master["Total"] = pd.to_numeric(master["Total"], errors="coerce").fillna(0).astype(int)
 
-# ShelfLifePct calculation (based on max shelf life in dataset)
-if "Shelflife in Days" in master.columns and master["Shelflife in Days"].max() > 0:
-    master["ShelfLifePct"] = ((master["Shelflife in Days"] / master["Shelflife in Days"].max()) * 100).round(0).astype(int)
-else:
-    master["ShelfLifePct"] = 0
-
 # Unified shelf life status logic
 master["SL Status"] = "Safe"
 master.loc[master["Shelflife in Days"] < 30, "SL Status"] = "Critical"
@@ -77,12 +71,11 @@ def export_excel(df):
 
 # Heading
 st.markdown("<h2 style='text-align:center; font-family:Georgia; font-size:32px;'>Coca‑Cola | SLMG Beverages</h2>", unsafe_allow_html=True)
-
 tab1, tab2 = st.tabs(["Stock Overview", "Risk Stock Overview"])
 with tab1:
     st.header("Stock Overview")
 
-    # Horizontal filters
+    # Filters
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     with col1: selected_sites = st.multiselect("Site", sorted(master["Site"].dropna().unique()))
     with col2:
@@ -143,17 +136,17 @@ with tab1:
 
     st.divider()
     detail = filtered.copy()
+    # Keep ShelfLifePct as provided by Excel
     detail["ShelfLifePct"] = detail["ShelfLifePct"].astype(str) + "%"
     for col in detail.select_dtypes(include=["int64","float64"]).columns:
         detail[col] = detail[col].astype(int)
     st.subheader("Detail Table")
     st.dataframe(detail, hide_index=True, use_container_width=True, height=500)
     st.download_button("Export to Excel", export_excel(detail), file_name="Stock_Overview.xlsx")
-
 with tab2:
     st.header("Risk Stock Overview")
 
-    # Horizontal filters
+    # Filters
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: selected_sites = st.multiselect("Site", sorted(risk["Unit"].dropna().unique()), key="risk_site")
     with col2:
@@ -230,6 +223,3 @@ with tab2:
             rf[col] = rf[col].astype(int)
         st.dataframe(rf, hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(rf), file_name="Risk_Overview.xlsx")
-
-
-
