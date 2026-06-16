@@ -27,7 +27,7 @@ for col in date_cols_master:
     if col in master.columns:
         master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
 
-date_cols_risk = ["MFG Date", "EXP Date", "BBD Date", "DOD Date", "BBD/Expiry"]
+date_cols_risk = ["MFG Date", "EXP Date", "BBD/Expiry", "DOD Date"]
 for col in date_cols_risk:
     if col in risk.columns:
         risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
@@ -45,7 +45,7 @@ st.markdown(
 )
 
 # ---- Data prep ----
-master["Total"] = pd.to_numeric(master["Total"], errors="coerce").fillna(0).astype(int)
+master["Quantity"] = pd.to_numeric(master["Quantity"], errors="coerce").fillna(0).astype(int)
 
 # Status logic based on Shelflife %
 if "Shelflife" in master.columns:
@@ -58,8 +58,10 @@ risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).as
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
 risk["Days to BBD"] = pd.to_numeric(risk["Days to BBD"], errors="coerce").fillna(0).astype(int)
 risk["Days to SBD"] = pd.to_numeric(risk["Days to SBD"], errors="coerce").fillna(0).astype(int)
+risk["Days to DOD"] = pd.to_numeric(risk["Days to DOD"], errors="coerce").fillna(0).astype(int)
+risk["Days to LBD"] = pd.to_numeric(risk["Days to LBD"], errors="coerce").fillna(0).astype(int)
 
-# Unified BBD status logic (still based on days)
+# Unified BBD status logic
 risk["BBD Status"] = "Safe"
 risk.loc[risk["Days to BBD"] < 30, "BBD Status"] = "Critical"
 risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
@@ -83,7 +85,7 @@ with tab1:
         wh_source = master.copy()
         if selected_sites: wh_source = wh_source[wh_source["Site"].isin(selected_sites)]
         selected_warehouses = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()))
-    with col3: selected_skus = st.multiselect("SKU", sorted(master["Item Description"].dropna().unique()))
+    with col3: selected_skus = st.multiselect("SKU", sorted(master["SKU"].dropna().unique()))
     with col4: selected_brands = st.multiselect("Brand", sorted(master["Brand"].dropna().unique()))
     with col5: selected_categories = st.multiselect("Category", sorted(master["Category"].dropna().unique()))
     with col6: selected_pack = st.multiselect("Pack Size", sorted(master["Pack Size"].dropna().unique()))
@@ -93,7 +95,7 @@ with tab1:
     filtered = master.copy()
     if selected_sites: filtered = filtered[filtered["Site"].isin(selected_sites)]
     if selected_warehouses: filtered = filtered[filtered["Warehouse"].isin(selected_warehouses)]
-    if selected_skus: filtered = filtered[filtered["Item Description"].isin(selected_skus)]
+    if selected_skus: filtered = filtered[filtered["SKU"].isin(selected_skus)]
     if selected_brands: filtered = filtered[filtered["Brand"].isin(selected_brands)]
     if selected_categories: filtered = filtered[filtered["Category"].isin(selected_categories)]
     if selected_pack: filtered = filtered[filtered["Pack Size"].isin(selected_pack)]
@@ -106,33 +108,33 @@ with tab1:
 
     # KPI cards (based on Shelflife %)
     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-    c1.metric("Total Stock", f"{int(filtered['Total'].sum()):,}")
-    c2.metric("Unique SKUs", int(filtered["Item Description"].nunique()))
+    c1.metric("Total Stock", f"{int(filtered['Quantity'].sum()):,}")
+    c2.metric("Unique SKUs", int(filtered["SKU"].nunique()))
     c3.metric("Sites", int(filtered["Site"].nunique()))
     c4.metric("Warehouses", int(filtered["Warehouse"].nunique()))
-    c5.metric("Critical SL (<30%)", int(filtered[filtered["Shelflife"] < 30]["Total"].sum()))
-    c6.metric("Warning SL (31-90%)", int(filtered[(filtered["Shelflife"] >= 31) & (filtered["Shelflife"] <= 90)]["Total"].sum()))
-    c7.metric("Safe SL (>=90%)", int(filtered[filtered["Shelflife"] >= 90]["Total"].sum()))
+    c5.metric("Critical SL (<30%)", int(filtered[filtered["Shelflife"] < 30]["Quantity"].sum()))
+    c6.metric("Warning SL (31-90%)", int(filtered[(filtered["Shelflife"] >= 31) & (filtered["Shelflife"] <= 90)]["Quantity"].sum()))
+    c7.metric("Safe SL (>=90%)", int(filtered[filtered["Shelflife"] >= 90]["Quantity"].sum()))
 
     st.divider()
 
     # Stock by site chart
-    stock_site = filtered.groupby("Site")["Total"].sum().reset_index().sort_values("Total", ascending=False)
-    fig = px.bar(stock_site, x="Site", y="Total", text="Total", title="Stock By Site")
+    stock_site = filtered.groupby("Site")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+    fig = px.bar(stock_site, x="Site", y="Quantity", text="Quantity", title="Stock By Site")
     st.plotly_chart(fig, use_container_width=True, key="stock_by_site")
 
     # Top SKUs
     left, right = st.columns(2)
     with left:
         st.subheader("Top 5 SKUs By Inventory")
-        top_inventory = filtered.groupby("Item Description")["Total"].sum().reset_index().sort_values("Total", ascending=False).head(5)
-        top_inventory["Total"] = top_inventory["Total"].astype(int)
+        top_inventory = filtered.groupby("SKU")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False).head(5)
+        top_inventory["Quantity"] = top_inventory["Quantity"].astype(int)
         st.dataframe(top_inventory, hide_index=True, use_container_width=True)
     with right:
         st.subheader("Top 5 SKUs — Lowest Shelf Life %")
-        least_sl = filtered[["Item Description", "Shelflife", "Total"]].sort_values("Shelflife").head(5)
+        least_sl = filtered[["SKU", "Shelflife", "Quantity"]].sort_values("Shelflife").head(5)
         least_sl["Shelflife"] = least_sl["Shelflife"].round(0).astype(int).astype(str) + "%"
-        least_sl["Total"] = least_sl["Total"].astype(int)
+        least_sl["Quantity"] = least_sl["Quantity"].astype(int)
         st.dataframe(least_sl, hide_index=True, use_container_width=True)
 
     st.divider()
@@ -174,12 +176,14 @@ with tab2:
         st.warning("No data available for the selected filters.")
     else:
         # KPI CARDS
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
         c1.metric("Total Qty", f"{int(rf['Quantity'].sum()):,}")
         c2.metric("Critical BBD (<30 days)", f"{int(rf[rf['Days to BBD'] < 30]['Quantity'].sum()):,}")
         c3.metric("Warning BBD (31-90 days)", f"{int(rf[(rf['Days to BBD'] >= 31) & (rf['Days to BBD'] <= 90)]['Quantity'].sum()):,}")
         c4.metric("Safe BBD (>90 days)", f"{int(rf[rf['Days to BBD'] > 90]['Quantity'].sum()):,}")
         c5.metric("Critical SBD (<30 days)", f"{int(rf[rf['Days to SBD'] < 30]['Quantity'].sum()):,}")
+        c6.metric("Critical DOD (<30 days)", f"{int(rf[rf['Days to DOD'] < 30]['Quantity'].sum()):,}")
+        c7.metric("Critical LBD (<30 days)", f"{int(rf[rf['Days to LBD'] < 30]['Quantity'].sum()):,}")
 
         st.divider()
 
@@ -212,6 +216,9 @@ with tab2:
                 "CRITICAL BBD": int(temp[temp["Days to BBD"] < 30]["Quantity"].sum()),
                 "WARNING BBD": int(temp[(temp["Days to BBD"] >= 31) & (temp["Days to BBD"] <= 90)]["Quantity"].sum()),
                 "SAFE BBD": int(temp[temp["Days to BBD"] > 90]["Quantity"].sum()),
+                "CRITICAL SBD": int(temp[temp["Days to SBD"] < 30]["Quantity"].sum()),
+                "CRITICAL DOD": int(temp[temp["Days to DOD"] < 30]["Quantity"].sum()),
+                "CRITICAL LBD": int(temp[temp["Days to LBD"] < 30]["Quantity"].sum()),
                 "CONSUMED INV": int(temp["Consumed inventory"].sum()),
                 "LEAKAGE/BREAKAGE WH": int(leakage)
             })
