@@ -3,19 +3,13 @@ import pandas as pd
 import plotly.express as px
 from io import BytesIO
 
-# Page config
-st.set_page_config(
-    page_title="SLMG Inventory Hub",
-    page_icon="banner_bg.png",
-    layout="wide"
-)
+st.set_page_config(page_title="SLMG Inventory Hub", page_icon="banner_bg.png", layout="wide")
 
-# Load data
 @st.cache_data
 def load_data():
     master = pd.read_excel("Master Stock.xlsx")
     risk = pd.read_excel("Near Expiry iNVENTORY_.xlsx")
-    distributor = pd.read_excel("DBR.xlsx")   # NEW distributor file
+    distributor = pd.read_excel("DBR.xlsx")
     master.columns = master.columns.str.strip()
     risk.columns = risk.columns.str.strip()
     distributor.columns = distributor.columns.str.strip()
@@ -23,24 +17,17 @@ def load_data():
 
 master, risk, distributor = load_data()
 
-# ---- Clean up date columns ----
+# Date cleanup
 for col in ["MFG Date","EXP Date","DOD Date"]:
-    if col in master.columns:
-        master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
+    if col in master.columns: master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
 for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
-    if col in risk.columns:
-        risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
+    if col in risk.columns: risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
 for col in ["MFG Date","EXP Date","BBD/Expiry"]:
-    if col in distributor.columns:
-        distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
+    if col in distributor.columns: distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
 
-# Adjust top padding
-st.markdown(
-    "<style>.block-container {padding-top: 1.5rem;}</style>",
-    unsafe_allow_html=True
-)
+st.markdown("<style>.block-container {padding-top: 1.5rem;}</style>", unsafe_allow_html=True)
 
-# ---- Data prep ----
+# Data prep
 master["Quantity"] = pd.to_numeric(master["Quantity"], errors="coerce").fillna(0).astype(int)
 if "Shelflife" in master.columns:
     master["Shelflife"] = master["Shelflife"].astype(float) * 100
@@ -51,8 +38,7 @@ if "Shelflife" in master.columns:
 risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).astype(int)
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
 for col in ["Days to BBD","Days to SBD","Days to DOD","Days to LBD"]:
-    if col in risk.columns:
-        risk[col] = pd.to_numeric(risk[col], errors="coerce").fillna(0).astype(int)
+    if col in risk.columns: risk[col] = pd.to_numeric(risk[col], errors="coerce").fillna(0).astype(int)
 risk["BBD Status"] = "Safe"
 risk.loc[risk["Days to BBD"] < 30, "BBD Status"] = "Critical"
 risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
@@ -69,26 +55,24 @@ def export_excel(df):
         df.to_excel(writer, index=False)
     return output.getvalue()
 
-# Heading
 st.markdown("<h2 style='text-align:center; font-family:Georgia; font-size:32px;'>Coca‑Cola | SLMG Beverages</h2>", unsafe_allow_html=True)
 tab1, tab2, tab3 = st.tabs(["Stock Overview", "Risk Stock Overview", "Distributor Stock Overview"])
 
 with tab1:
     st.header("Stock Overview")
 
-    # Filters
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
-    with col1: selected_sites = st.multiselect("Site", sorted(master["Site"].dropna().unique()))
+    with col1: selected_sites = st.multiselect("Site", sorted(master["Site"].dropna().unique()), key="stock_site")
     with col2:
         wh_source = master.copy()
         if selected_sites: wh_source = wh_source[wh_source["Site"].isin(selected_sites)]
-        selected_warehouses = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()))
-    with col3: selected_skus = st.multiselect("SKU", sorted(master["SKU"].dropna().unique()))
-    with col4: selected_brands = st.multiselect("Brand", sorted(master["Brand"].dropna().unique()))
-    with col5: selected_categories = st.multiselect("Category", sorted(master["Category"].dropna().unique()))
-    with col6: selected_pack = st.multiselect("Pack Size", sorted(master["Pack Size"].dropna().unique()))
-    with col7: selected_sl = st.multiselect("Shelf Life", ["Critical", "Warning", "Safe"])
-    with col8: search_text = st.text_input("Search")
+        selected_warehouses = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()), key="stock_wh")
+    with col3: selected_skus = st.multiselect("SKU", sorted(master["SKU"].dropna().unique()), key="stock_sku")
+    with col4: selected_brands = st.multiselect("Brand", sorted(master["Brand"].dropna().unique()), key="stock_brand")
+    with col5: selected_categories = st.multiselect("Category", sorted(master["Category"].dropna().unique()), key="stock_cat")
+    with col6: selected_pack = st.multiselect("Pack Size", sorted(master["Pack Size"].dropna().unique()), key="stock_pack")
+    with col7: selected_sl = st.multiselect("Shelf Life", ["Critical","Warning","Safe"], key="stock_sl")
+    with col8: search_text = st.text_input("Search", key="stock_search")
 
     filtered = master.copy()
     if selected_sites: filtered = filtered[filtered["Site"].isin(selected_sites)]
@@ -102,8 +86,7 @@ with tab1:
         mask = filtered.astype(str).apply(lambda x: x.str.contains(search_text, case=False, na=False)).any(axis=1)
         filtered = filtered[mask]
 
-    # KPI cards
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
     c1.metric("Total Stock", f"{int(filtered['Quantity'].sum()):,}")
     c2.metric("Unique SKUs", int(filtered["SKU"].nunique()))
     c3.metric("Sites", int(filtered["Site"].nunique()))
@@ -112,39 +95,35 @@ with tab1:
     c6.metric("Warning SL (31-90%)", int(filtered[(filtered["Shelflife"] >= 31) & (filtered["Shelflife"] <= 90)]["Quantity"].sum()))
     c7.metric("Safe SL (>=90%)", int(filtered[filtered["Shelflife"] >= 90]["Quantity"].sum()))
 
-    # Stock by site chart
     stock_site = filtered.groupby("Site")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
     fig = px.bar(stock_site, x="Site", y="Quantity", text="Quantity", title="Stock By Site")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Top SKUs
-    left, right = st.columns(2)
+    left,right = st.columns(2)
     with left:
         st.subheader("Top 5 SKUs By Inventory")
         top_inventory = filtered.groupby("SKU")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False).head(5)
         st.dataframe(top_inventory, hide_index=True, use_container_width=True)
     with right:
         st.subheader("Top 5 SKUs — Lowest Shelf Life %")
-        least_sl = filtered[["SKU", "Shelflife", "Quantity"]].sort_values("Shelflife").head(5)
+        least_sl = filtered[["SKU","Shelflife","Quantity"]].sort_values("Shelflife").head(5)
         st.dataframe(least_sl, hide_index=True, use_container_width=True)
 
-    # Detail Table
     st.subheader("Detail Table")
     st.dataframe(filtered, hide_index=True, use_container_width=True, height=500)
     st.download_button("Export to Excel", export_excel(filtered), file_name="Stock_Overview.xlsx")
 with tab2:
     st.header("Risk Stock Overview")
 
-    # Filters
     col1, col2, col3, col4, col5 = st.columns(5)
-    with col1: selected_sites = st.multiselect("Site", sorted(risk["Unit"].dropna().unique()))
+    with col1: selected_sites = st.multiselect("Site", sorted(risk["Unit"].dropna().unique()), key="risk_site")
     with col2:
         wh_source = risk.copy()
         if selected_sites: wh_source = wh_source[risk["Unit"].isin(selected_sites)]
-        selected_wh = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()))
-    with col3: selected_sku = st.multiselect("SKU", sorted(risk["SKU"].dropna().unique()))
-    with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical", "Warning", "Safe"])
-    with col5: search_risk = st.text_input("Search")
+        selected_wh = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()), key="risk_wh")
+    with col3: selected_sku = st.multiselect("SKU", sorted(risk["SKU"].dropna().unique()), key="risk_sku")
+    with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="risk_exp")
+    with col5: search_risk = st.text_input("Search", key="risk_search")
 
     rf = risk.copy()
     if selected_sites: rf = rf[rf["Unit"].isin(selected_sites)]
@@ -212,16 +191,15 @@ with tab2:
 with tab3:
     st.header("Distributor Stock Overview")
 
-    # Filters
     col1, col2, col3, col4 = st.columns(4)
-    with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()))
+    with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()), key="dist_district")
     with col2:
         dist_source = distributor.copy()
         if selected_districts: dist_source = dist_source[dist_source["District"].isin(selected_districts)]
-        selected_distributors = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()))
-    with col3: selected_sku = st.multiselect("SKU", sorted(distributor["SKU"].dropna().unique()))
-    with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"])
-    search_dist = st.text_input("Search")
+        selected_distributors = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="dist_distributor")
+    with col3: selected_sku = st.multiselect("SKU", sorted(distributor["SKU"].dropna().unique()), key="dist_sku")
+    with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="dist_exp")
+    search_dist = st.text_input("Search", key="dist_search")
 
     df = distributor.copy()
     if selected_districts: df = df[df["District"].isin(selected_districts)]
@@ -235,7 +213,6 @@ with tab3:
     if df.empty:
         st.warning("No data available for the selected filters.")
     else:
-        # KPI Cards
         c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
         c1.metric("Total Qty", f"{int(df['Quantity'].sum()):,}")
         c2.metric("Total Distributors", int(df["Distributor"].nunique()))
@@ -247,14 +224,12 @@ with tab3:
 
         st.divider()
 
-        # Stock by District graph
         stock_district = df.groupby("District")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
         fig = px.bar(stock_district, x="District", y="Quantity", text="Quantity", title="Stock By District")
         st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
 
-        # District level breakdown
         breakdown = []
         for district in sorted(df["District"].dropna().unique()):
             temp = df[df["District"] == district]
