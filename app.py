@@ -30,10 +30,14 @@ st.markdown("<style>.block-container {padding-top: 1.5rem;}</style>", unsafe_all
 # Data prep
 master["Quantity"] = pd.to_numeric(master["Quantity"], errors="coerce").fillna(0).astype(int)
 if "Shelflife" in master.columns:
-    master["Shelflife"] = master["Shelflife"].astype(float) * 100
+    # keep numeric version for calculations
+    master["Shelflife"] = (master["Shelflife"].astype(float) * 100).round().astype(int)
     master["SL Status"] = "Safe"
     master.loc[master["Shelflife"] < 30, "SL Status"] = "Critical"
     master.loc[(master["Shelflife"] >= 31) & (master["Shelflife"] <= 90), "SL Status"] = "Warning"
+
+    # optional display column with % sign, no decimals
+    master["ShelflifeDisplay"] = master["Shelflife"].astype(str) + "%"
 
 risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).astype(int)
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
