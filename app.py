@@ -30,16 +30,13 @@ st.markdown("<style>.block-container {padding-top: 1.5rem;}</style>", unsafe_all
 # Data prep
 master["Quantity"] = pd.to_numeric(master["Quantity"], errors="coerce").fillna(0).astype(int)
 if "Shelflife" in master.columns:
-    # numeric version for KPI logic
-    master["ShelflifeNum"] = (master["Shelflife"].astype(float) * 100).round().astype(int)
+    # Convert Excel values to whole numbers (e.g. 78 instead of 0.78)
+    master["Shelflife"] = (pd.to_numeric(master["Shelflife"], errors="coerce") * 100).round().astype(int)
 
-    # formatted version for display
-    master["Shelflife"] = master["ShelflifeNum"].astype(str) + "%"
-
-    # status logic uses numeric version
+    # Status logic uses the numeric Shelflife directly
     master["SL Status"] = "Safe"
-    master.loc[master["ShelflifeNum"] < 30, "SL Status"] = "Critical"
-    master.loc[(master["ShelflifeNum"] >= 31) & (master["ShelflifeNum"] <= 90), "SL Status"] = "Warning"
+    master.loc[master["Shelflife"] < 30, "SL Status"] = "Critical"
+    master.loc[(master["Shelflife"] >= 31) & (master["Shelflife"] <= 90), "SL Status"] = "Warning"
 
 risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).astype(int)
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
