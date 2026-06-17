@@ -30,14 +30,14 @@ st.markdown("<style>.block-container {padding-top: 1.5rem;}</style>", unsafe_all
 # Data prep
 master["Quantity"] = pd.to_numeric(master["Quantity"], errors="coerce").fillna(0).astype(int)
 if "Shelflife" in master.columns:
-    # keep numeric version for calculations
-    master["Shelflife"] = (master["Shelflife"].astype(float) * 100).round().astype(int)
-    master["SL Status"] = "Safe"
-    master.loc[master["Shelflife"] < 30, "SL Status"] = "Critical"
-    master.loc[(master["Shelflife"] >= 31) & (master["Shelflife"] <= 90), "SL Status"] = "Warning"
+    # convert to whole number percentages
+    master["Shelflife"] = (master["Shelflife"].astype(float) * 100).round().astype(int).astype(str) + "%"
 
-    # optional display column with % sign, no decimals
-    master["ShelflifeDisplay"] = master["Shelflife"].astype(str) + "%"
+    # derive status from numeric values before formatting
+    shelflife_numeric = (master["Shelflife"].str.replace("%","").astype(int))
+    master["SL Status"] = "Safe"
+    master.loc[shelflife_numeric < 30, "SL Status"] = "Critical"
+    master.loc[(shelflife_numeric >= 31) & (shelflife_numeric <= 90), "SL Status"] = "Warning"
 
 risk["Quantity"] = pd.to_numeric(risk["Quantity"], errors="coerce").fillna(0).astype(int)
 risk["Consumed inventory"] = pd.to_numeric(risk["Consumed inventory"], errors="coerce").fillna(0).astype(int)
