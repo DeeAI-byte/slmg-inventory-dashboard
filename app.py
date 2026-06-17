@@ -138,14 +138,13 @@ with tab2:
         st.warning("No data available for the selected filters.")
     else:
         # KPI Cards
-        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("Total Qty", f"{int(rf['Quantity'].sum()):,}")
         c2.metric("Critical BBD (<30 days)", int(rf[rf["Days to BBD"] < 30]["Quantity"].sum()))
         c3.metric("Warning BBD (31-90 days)", int(rf[(rf["Days to BBD"] >= 31) & (rf["Days to BBD"] <= 90)]["Quantity"].sum()))
         c4.metric("Safe BBD (>90 days)", int(rf[rf["Days to BBD"] > 90]["Quantity"].sum()))
         c5.metric("Critical SBD (<30 days)", int(rf[rf["Days to SBD"] < 30]["Quantity"].sum()))
-        c6.metric("Critical DOD (<30 days)", int(rf[rf["Days to DOD"] < 30]["Quantity"].sum()))
-        c7.metric("Critical LBD (<30 days)", int(rf[rf["Days to LBD"] < 30]["Quantity"].sum()))
+        c6.metric("Critical LBD (<30 days)", int(rf[rf["Days to LBD"] < 30]["Quantity"].sum()))
 
         st.divider()
 
