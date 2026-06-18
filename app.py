@@ -177,8 +177,6 @@ with tab2:
                 "WARNING BBD": int(temp[(temp["Days to BBD"] >= 31) & (temp["Days to BBD"] <= 90)]["Quantity"].sum()),
                 "SAFE BBD": int(temp[temp["Days to BBD"] > 90]["Quantity"].sum()),
                 "CRITICAL SBD": int(temp[temp["Days to SBD"] < 30]["Quantity"].sum()),
-                "CRITICAL DOD": int(temp[temp["Days to DOD"] < 30]["Quantity"].sum()),
-                "CRITICAL LBD": int(temp[temp["Days to LBD"] < 30]["Quantity"].sum()),
                 "CONSUMED INV": int(temp["Consumed inventory"].sum()),
                 "LEAKAGE/BREAKAGE WH": int(leakage)
             })
