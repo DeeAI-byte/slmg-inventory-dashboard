@@ -191,20 +191,26 @@ with tab2:
 with tab3:
     st.header("Distributor Stock Overview")
 
-    col1, col2, col3, col4 = st.columns(4)
+    # Filters in one line
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()), key="dist_district")
     with col2:
         dist_source = distributor.copy()
         if selected_districts: dist_source = dist_source[dist_source["District"].isin(selected_districts)]
         selected_distributors = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="dist_distributor")
     with col3: selected_sku = st.multiselect("SKU", sorted(distributor["SKU"].dropna().unique()), key="dist_sku")
-    with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="dist_exp")
-    search_dist = st.text_input("Search", key="dist_search")
+    with col4: selected_brand = st.multiselect("Brand", sorted(distributor["Brand"].dropna().unique()), key="dist_brand")
+    with col5: selected_pack = st.multiselect("Pack Size", sorted(distributor["Pack Size"].dropna().unique()), key="dist_pack")
+    with col6: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="dist_exp")
+    with col7: search_dist = st.text_input("Search", key="dist_search")
 
+    # Apply filters
     df = distributor.copy()
     if selected_districts: df = df[df["District"].isin(selected_districts)]
     if selected_distributors: df = df[df["Distributor"].isin(selected_distributors)]
     if selected_sku: df = df[df["SKU"].isin(selected_sku)]
+    if selected_brand: df = df[df["Brand"].isin(selected_brand)]
+    if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
     if selected_expiry: df = df[df["BBD Status"].isin(selected_expiry)]
     if search_dist:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_dist, case=False, na=False)).any(axis=1)
@@ -213,23 +219,7 @@ with tab3:
     if df.empty:
         st.warning("No data available for the selected filters.")
     else:
-        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-        c1.metric("Total Qty", f"{int(df['Quantity'].sum()):,}")
-        c2.metric("Total Distributors", int(df["Distributor"].nunique()))
-        c3.metric("Unique SKUs", int(df["SKU"].nunique()))
-        c4.metric("Districts", int(df["District"].nunique()))
-        c5.metric("Critical BBD (<30 days)", int(df[df["Days to BBD"] < 30]["Quantity"].sum()))
-        c6.metric("Warning BBD (31-90 days)", int(df[(df["Days to BBD"] >= 31) & (df["Days to BBD"] <= 90)]["Quantity"].sum()))
-        c7.metric("Safe BBD (>90 days)", int(df[df["Days to BBD"] > 90]["Quantity"].sum()))
-
-        st.divider()
-
-        stock_district = df.groupby("District")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-        fig = px.bar(stock_district, x="District", y="Quantity", text="Quantity", title="Stock By District")
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.divider()
-
+        st.subheader("District Level Breakdown")
         breakdown = []
         for district in sorted(df["District"].dropna().unique()):
             temp = df[df["District"] == district]
@@ -245,12 +235,12 @@ with tab3:
                     "Safe BBD": int(sub[sub["Days to BBD"] > 90]["Quantity"].sum())
                 })
         breakdown_df = pd.DataFrame(breakdown)
-        st.subheader("District Level Breakdown")
         st.dataframe(breakdown_df, hide_index=True, use_container_width=True)
 
         st.divider()
         st.subheader("Detail Table")
         for col in df.select_dtypes(include=["int64","float64"]).columns:
             df[col] = df[col].astype(int)
+        # Detail table now includes Brand and Pack Size automatically
         st.dataframe(df, hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Distributor_Overview.xlsx")
