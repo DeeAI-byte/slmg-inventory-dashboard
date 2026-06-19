@@ -191,7 +191,7 @@ with tab2:
 with tab3:
     st.header("Distributor Stock Overview")
 
-    # Filters in one line
+    # Filters in one line (added Brand + Pack Size)
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()), key="dist_district")
     with col2:
@@ -219,7 +219,24 @@ with tab3:
     if df.empty:
         st.warning("No data available for the selected filters.")
     else:
-        st.subheader("District Level Breakdown")
+        # KPI Cards (keep the ones you had)
+        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+        c1.metric("Total Qty", f"{int(df['Quantity'].sum()):,}")
+        c2.metric("Total Distributors", int(df["Distributor"].nunique()))
+        c3.metric("Unique SKUs", int(df["SKU"].nunique()))
+        c4.metric("Districts", int(df["District"].nunique()))
+        c5.metric("Critical BBD (<30 days)", int(df[df["Days to BBD"] < 30]["Quantity"].sum()))
+        c6.metric("Warning BBD (31-90 days)", int(df[(df["Days to BBD"] >= 31) & (df["Days to BBD"] <= 90)]["Quantity"].sum()))
+        c7.metric("Safe BBD (>90 days)", int(df[df["Days to BBD"] > 90]["Quantity"].sum()))
+
+        st.divider()
+
+        stock_district = df.groupby("District")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+        fig = px.bar(stock_district, x="District", y="Quantity", text="Quantity", title="Stock By District")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+
         breakdown = []
         for district in sorted(df["District"].dropna().unique()):
             temp = df[df["District"] == district]
@@ -235,6 +252,7 @@ with tab3:
                     "Safe BBD": int(sub[sub["Days to BBD"] > 90]["Quantity"].sum())
                 })
         breakdown_df = pd.DataFrame(breakdown)
+        st.subheader("District Level Breakdown")
         st.dataframe(breakdown_df, hide_index=True, use_container_width=True)
 
         st.divider()
