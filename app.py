@@ -191,7 +191,7 @@ with tab2:
 with tab3:
     st.header("Distributor Stock Overview")
 
-    # Filters in one line (added Brand + Pack Size)
+    # Filters in one line (District, Distributor, SKU, Brand, Pack Size, Expiry Status, Search)
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()), key="dist_district")
     with col2:
@@ -219,7 +219,7 @@ with tab3:
     if df.empty:
         st.warning("No data available for the selected filters.")
     else:
-        # KPI Cards (keep the ones you had)
+        # KPI Cards
         c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
         c1.metric("Total Qty", f"{int(df['Quantity'].sum()):,}")
         c2.metric("Total Distributors", int(df["Distributor"].nunique()))
@@ -231,12 +231,29 @@ with tab3:
 
         st.divider()
 
+        # Stock by District chart
         stock_district = df.groupby("District")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-        fig = px.bar(stock_district, x="District", y="Quantity", text="Quantity", title="Stock By District")
-        st.plotly_chart(fig, use_container_width=True)
+        fig_dist = px.bar(stock_district, x="District", y="Quantity", text="Quantity", title="Stock by District")
+        st.plotly_chart(fig_dist, use_container_width=True)
 
         st.divider()
 
+        # Stock by Brand and Stock by Pack Size charts side by side
+        colA, colB = st.columns(2)
+
+        with colA:
+            stock_brand = df.groupby("Brand")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+            fig_brand = px.bar(stock_brand, x="Brand", y="Quantity", text="Quantity", title="Stock by Brand")
+            st.plotly_chart(fig_brand, use_container_width=True)
+
+        with colB:
+            stock_pack = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+            fig_pack = px.bar(stock_pack, x="Pack Size", y="Quantity", text="Quantity", title="Stock by Pack Size")
+            st.plotly_chart(fig_pack, use_container_width=True)
+
+        st.divider()
+
+        # District Level Breakdown
         breakdown = []
         for district in sorted(df["District"].dropna().unique()):
             temp = df[df["District"] == district]
@@ -259,6 +276,6 @@ with tab3:
         st.subheader("Detail Table")
         for col in df.select_dtypes(include=["int64","float64"]).columns:
             df[col] = df[col].astype(int)
-        # Detail table now includes Brand and Pack Size automatically
+        # Detail table includes Brand and Pack Size automatically
         st.dataframe(df, hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Distributor_Overview.xlsx")
