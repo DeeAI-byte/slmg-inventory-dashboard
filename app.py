@@ -338,27 +338,39 @@ with tab4:
         # KPI Cards
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Outlets", int(df["Outlet"].nunique()))
-        c2.metric("Total Volume", f"{int(df['Quantity'].sum()):,}")
-        c3.metric("Unique SKUs", int(df["SKU"].nunique()))
-        c4.metric("Distributors", int(df["Distributor"].nunique()))
+        c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df['QTY'].sum()):,}")
+        c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
+        c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
 
         st.divider()
 
         # Charts
         colA, colB = st.columns(2)
         with colA:
-            brand_sales = df.groupby("Brand")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-            fig_brand = px.bar(brand_sales, x="Brand", y="Quantity", text="Quantity", title="Sales by Brand")
-            st.plotly_chart(fig_brand, use_container_width=True)
+            asm_perf = df.groupby("ASM")[["QTY","NetRevenue"]].sum().reset_index().sort_values("QTY", ascending=False)
+            fig_asm = px.bar(asm_perf, x="ASM", y="QTY", text="QTY", title="ASM Performance (Volume)")
+            st.plotly_chart(fig_asm, use_container_width=True)
         with colB:
-            category_sales = df.groupby("Category")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-            fig_cat = px.bar(category_sales, x="Category", y="Quantity", text="Quantity", title="Sales by Category")
-            st.plotly_chart(fig_cat, use_container_width=True)
+            brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+            fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Brand Performance")
+            st.plotly_chart(fig_brand, use_container_width=True)
 
         st.divider()
-        pack_sales = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-        fig_pack = px.bar(pack_sales, x="Pack Size", y="Quantity", text="Quantity", title="Sales by Pack Size")
-        st.plotly_chart(fig_pack, use_container_width=True)
+        colC, colD = st.columns(2)
+        with colC:
+            cat_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+            fig_cat = px.bar(cat_perf, x="Category", y="QTY", text="QTY", title="Category Performance")
+            st.plotly_chart(fig_cat, use_container_width=True)
+        with colD:
+            pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+            fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Pack Size Performance")
+            st.plotly_chart(fig_pack, use_container_width=True)
+
+        st.divider()
+        # VPO Contribution
+        vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
+        fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
+        st.plotly_chart(fig_vpo, use_container_width=True)
 
         st.divider()
         st.subheader("Detail Table")
