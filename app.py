@@ -1,8 +1,3 @@
-import pandas as pd
-
-sheet_url = "https://docs.google.com/spreadsheets/d/1ma4733l0FXCQ0c9bkXmFnLBsHMcGJ03p/gviz/tq?tqx=out:csv&gid=632389995"
-secondary = pd.read_csv(sheet_url)
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -287,33 +282,24 @@ with tab3:
 with tab4:
     st.header("Secondary Sales Overview")
 
+    # Load May-only Excel file
+    secondary = pd.read_excel("Secondary_May.xlsx")
+
+    # Ensure numeric columns are clean
+    for col in ["QTY","NetRevenue"]:
+        if col in secondary.columns:
+            secondary[col] = pd.to_numeric(secondary[col], errors="coerce").fillna(0).astype(int)
+
     # Filters in one line
-    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
+    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
     with col1: selected_district = st.multiselect("District", sorted(secondary["District"].dropna().unique()), key="sec_district")
-    with col2:
-        sm_source = secondary.copy()
-        if selected_district: sm_source = sm_source[sm_source["District"].isin(selected_district)]
-        selected_sm = st.multiselect("SM", sorted(sm_source["SM"].dropna().unique()), key="sec_sm")
-    with col3:
-        asm_source = sm_source.copy()
-        if selected_sm: asm_source = asm_source[asm_source["SM"].isin(selected_sm)]
-        selected_asm = st.multiselect("ASM", sorted(asm_source["ASM"].dropna().unique()), key="sec_asm")
-    with col4:
-        route_source = asm_source.copy()
-        if selected_asm: route_source = route_source[route_source["ASM"].isin(selected_asm)]
-        selected_route = st.multiselect("Route", sorted(route_source["Route"].dropna().unique()), key="sec_route")
-    with col5:
-        dist_source = route_source.copy()
-        if selected_route: dist_source = dist_source[route_source["Route"].isin(selected_route)]
-        selected_distributor = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="sec_distributor")
-    with col6:
-        # ✅ Month filter only
-        secondary["Month"] = secondary["Month"].astype(str).str.strip()
-        months = sorted(secondary["Month"].dropna().unique())
-        selected_month = st.selectbox("Select Month", months, key="sec_month")
-    with col7: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
-    with col8: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
-    with col9: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
+    with col2: selected_sm = st.multiselect("SM", sorted(secondary["SM"].dropna().unique()), key="sec_sm")
+    with col3: selected_asm = st.multiselect("ASM", sorted(secondary["ASM"].dropna().unique()), key="sec_asm")
+    with col4: selected_route = st.multiselect("Route", sorted(secondary["Route"].dropna().unique()), key="sec_route")
+    with col5: selected_distributor = st.multiselect("Distributor", sorted(secondary["Distributor"].dropna().unique()), key="sec_distributor")
+    with col6: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
+    with col7: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
+    with col8: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
     search_sec = st.text_input("Search", key="sec_search")
 
     # Apply filters
@@ -323,18 +309,12 @@ with tab4:
     if selected_asm: df = df[df["ASM"].isin(selected_asm)]
     if selected_route: df = df[df["Route"].isin(selected_route)]
     if selected_distributor: df = df[df["Distributor"].isin(selected_distributor)]
-    if selected_month: df = df[df["Month"] == selected_month]
     if selected_brand: df = df[df["Brand"].isin(selected_brand)]
     if selected_category: df = df[df["Category"].isin(selected_category)]
     if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
     if search_sec:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
-
-    # Ensure numeric columns are clean
-    for col in ["QTY","NetRevenue"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
     # Output section
     if df.empty:
@@ -378,5 +358,5 @@ with tab4:
 
         st.divider()
         st.subheader("Detail Table")
-        st.dataframe(df, hide_index=True, width=1000, height=500)
+        st.dataframe(df.head(1000), hide_index=True, width=1000, height=500)  # cap rows for stability
         st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
