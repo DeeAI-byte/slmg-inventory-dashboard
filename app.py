@@ -308,7 +308,6 @@ with tab4:
         selected_distributor = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="sec_distributor")
     with col6:
         # ✅ Month filter only
-        # Normalize Month column to string for safe comparison
         secondary["Month"] = secondary["Month"].astype(str).str.strip()
         months = sorted(secondary["Month"].dropna().unique())
         selected_month = st.selectbox("Select Month", months, key="sec_month")
@@ -324,10 +323,44 @@ with tab4:
     if selected_asm: df = df[df["ASM"].isin(selected_asm)]
     if selected_route: df = df[df["Route"].isin(selected_route)]
     if selected_distributor: df = df[df["Distributor"].isin(selected_distributor)]
-    if selected_month: df = df[df["Month"] == str(selected_month)]
+    if selected_month: df = df[df["Month"] == selected_month]
     if selected_brand: df = df[df["Brand"].isin(selected_brand)]
     if selected_category: df = df[df["Category"].isin(selected_category)]
     if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
     if search_sec:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
+
+    # Output section
+    if df.empty:
+        st.warning("No data available for the selected filters.")
+    else:
+        # KPI Cards
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total Outlets", int(df["Outlet"].nunique()))
+        c2.metric("Total Volume", f"{int(df['Quantity'].sum()):,}")
+        c3.metric("Unique SKUs", int(df["SKU"].nunique()))
+        c4.metric("Distributors", int(df["Distributor"].nunique()))
+
+        st.divider()
+
+        # Charts
+        colA, colB = st.columns(2)
+        with colA:
+            brand_sales = df.groupby("Brand")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+            fig_brand = px.bar(brand_sales, x="Brand", y="Quantity", text="Quantity", title="Sales by Brand")
+            st.plotly_chart(fig_brand, use_container_width=True)
+        with colB:
+            category_sales = df.groupby("Category")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+            fig_cat = px.bar(category_sales, x="Category", y="Quantity", text="Quantity", title="Sales by Category")
+            st.plotly_chart(fig_cat, use_container_width=True)
+
+        st.divider()
+        pack_sales = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
+        fig_pack = px.bar(pack_sales, x="Pack Size", y="Quantity", text="Quantity", title="Sales by Pack Size")
+        st.plotly_chart(fig_pack, use_container_width=True)
+
+        st.divider()
+        st.subheader("Detail Table")
+        st.dataframe(df, hide_index=True, use_container_width=True, height=500)
+        st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
