@@ -3,19 +3,37 @@ import pandas as pd
 import plotly.express as px
 from io import BytesIO
 
+# ✅ Page config always comes right after imports
 st.set_page_config(page_title="SLMG Inventory Hub", page_icon="banner_bg.png", layout="wide")
 
+# -----------------------------
+# Load all four datasets
+# -----------------------------
 @st.cache_data
 def load_data():
     master = pd.read_excel("Master Stock.xlsx")
     risk = pd.read_excel("Near Expiry iNVENTORY_.xlsx")
     distributor = pd.read_excel("DBR.xlsx")
-    master.columns = master.columns.str.strip()
-    risk.columns = risk.columns.str.strip()
-    distributor.columns = distributor.columns.str.strip()
-    return master, risk, distributor
+    secondary = pd.read_excel("Secondary.xlsx")   # ✅ added Secondary
 
-master, risk, distributor = load_data()
+    # Strip whitespace from headers
+    for df in [master, risk, distributor, secondary]:
+        df.columns = df.columns.str.strip()
+
+    # Clean numeric columns in secondary
+    if "QTY" in secondary.columns:
+        secondary["QTY"] = pd.to_numeric(secondary["QTY"], errors="coerce").fillna(0).astype(int)
+    if "NetRevenue" in secondary.columns:
+        secondary["NetRevenue"] = pd.to_numeric(secondary["NetRevenue"], errors="coerce").fillna(0).astype(int)
+
+    return master, risk, distributor, secondary
+
+# ✅ Unpack all four datasets right after defining load_data
+master, risk, distributor, secondary = load_data()
+
+# -----------------------------
+# Date cleanup starts below
+# -----------------------------
 
 # Date cleanup
 for col in ["MFG Date","EXP Date","DOD Date"]:
@@ -281,14 +299,9 @@ with tab3:
         st.download_button("Export to Excel", export_excel(df), file_name="Distributor_Overview.xlsx")
 with tab4:
     st.header("Secondary Sales Overview")
-
-    # Load May-only Excel file
-    secondary = pd.read_excel("Secondary_May.xlsx")
-
-    # Ensure numeric columns are clean
-    for col in ["QTY","NetRevenue"]:
-        if col in secondary.columns:
-            secondary[col] = pd.to_numeric(secondary[col], errors="coerce").fillna(0).astype(int)
+    
+     # ✅ use the already-loaded dataframe
+    df = secondary.copy()
 
     # Filters in one line
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
