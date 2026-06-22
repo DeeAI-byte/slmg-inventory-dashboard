@@ -1,6 +1,6 @@
 import pandas as pd
 
-sheet_url = "https://docs.google.com/spreadsheets/d/1ma4733l0FXCQ0c9bkXmFnLBsHMcGJ03p/gviz/tq?tqx=out:csv&sheet=Sheet1"
+sheet_url = "https://docs.google.com/spreadsheets/d/1ma4733l0FXCQ0c9bkXmFnLBsHMcGJ03p/gviz/tq?tqx=out:csv&gid=632389995"
 secondary = pd.read_csv(sheet_url)
 
 import streamlit as st
