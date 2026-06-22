@@ -304,11 +304,14 @@ with tab4:
         selected_route = st.multiselect("Route", sorted(route_source["Route"].dropna().unique()), key="sec_route")
     with col5:
         dist_source = route_source.copy()
-        if selected_route: dist_source = dist_source[dist_source["Route"].isin(selected_route)]
+        if selected_route: dist_source = dist_source[route_source["Route"].isin(selected_route)]
         selected_distributor = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="sec_distributor")
     with col6:
         # ✅ Month filter only
-        selected_month = st.selectbox("Select Month", sorted(secondary["Month"].dropna().unique()), key="sec_month")
+        # Normalize Month column to string for safe comparison
+        secondary["Month"] = secondary["Month"].astype(str).str.strip()
+        months = sorted(secondary["Month"].dropna().unique())
+        selected_month = st.selectbox("Select Month", months, key="sec_month")
     with col7: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
     with col8: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
     with col9: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
@@ -321,7 +324,7 @@ with tab4:
     if selected_asm: df = df[df["ASM"].isin(selected_asm)]
     if selected_route: df = df[df["Route"].isin(selected_route)]
     if selected_distributor: df = df[df["Distributor"].isin(selected_distributor)]
-    if selected_month: df = df[df["Month"] == selected_month]
+    if selected_month: df = df[df["Month"] == str(selected_month)]
     if selected_brand: df = df[df["Brand"].isin(selected_brand)]
     if selected_category: df = df[df["Category"].isin(selected_category)]
     if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
