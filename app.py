@@ -331,6 +331,11 @@ with tab4:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
 
+    # Ensure numeric columns are clean
+    for col in ["QTY","NetRevenue"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
     # Output section
     if df.empty:
         st.warning("No data available for the selected filters.")
@@ -349,33 +354,29 @@ with tab4:
         with colA:
             asm_perf = df.groupby("ASM")[["QTY","NetRevenue"]].sum().reset_index().sort_values("QTY", ascending=False)
             fig_asm = px.bar(asm_perf, x="ASM", y="QTY", text="QTY", title="ASM Performance (Volume)")
-            st.plotly_chart(fig_asm, use_container_width=True)
+            st.plotly_chart(fig_asm, width=800)
         with colB:
             brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
             fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Brand Performance")
-            st.plotly_chart(fig_brand, use_container_width=True)
+            st.plotly_chart(fig_brand, width=800)
 
         st.divider()
         colC, colD = st.columns(2)
         with colC:
             cat_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
             fig_cat = px.bar(cat_perf, x="Category", y="QTY", text="QTY", title="Category Performance")
-            st.plotly_chart(fig_cat, use_container_width=True)
+            st.plotly_chart(fig_cat, width=800)
         with colD:
             pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
             fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Pack Size Performance")
-            st.plotly_chart(fig_pack, use_container_width=True)
+            st.plotly_chart(fig_pack, width=800)
 
         st.divider()
         vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
         fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
-        st.plotly_chart(fig_vpo, use_container_width=True)
+        st.plotly_chart(fig_vpo, width=800)
 
         st.divider()
         st.subheader("Detail Table")
-        # Ensure numeric columns are int for clean display
-        for col in ["QTY","NetRevenue"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-        st.dataframe(df, hide_index=True, use_container_width=True, height=500)
+        st.dataframe(df, hide_index=True, width=1000, height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
