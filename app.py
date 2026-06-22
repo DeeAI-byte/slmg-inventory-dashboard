@@ -1,3 +1,8 @@
+import pandas as pd
+
+sheet_url = "https://docs.google.com/spreadsheets/d/1ma4733l0FXCQ0c9bkXmFnLBsHMcGJ03p/gviz/tq?tqx=out:csv&sheet=Sheet1"
+secondary = pd.read_csv(sheet_url)
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -59,7 +64,7 @@ def export_excel(df):
     return output.getvalue()
 
 st.markdown("<h2 style='text-align:center; font-family:Georgia; font-size:32px;'>Coca‑Cola | SLMG Beverages</h2>", unsafe_allow_html=True)
-tab1, tab2, tab3 = st.tabs(["Stock Overview", "Risk Stock Overview", "Distributor Stock Overview"])
+tab1, tab2, tab3, tab4 = st.tabs(["Stock Overview", "Risk Stock Overview", "Distributor Stock Overview", "Secondary Sales Overview"])
 
 with tab1:
     st.header("Stock Overview")
