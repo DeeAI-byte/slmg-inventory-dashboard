@@ -288,7 +288,7 @@ with tab4:
     st.header("Secondary Sales Overview")
 
     # Filters in one line
-    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns(10)
+    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
     with col1: selected_district = st.multiselect("District", sorted(secondary["District"].dropna().unique()), key="sec_district")
     with col2:
         sm_source = secondary.copy()
@@ -307,16 +307,12 @@ with tab4:
         if selected_route: dist_source = dist_source[dist_source["Route"].isin(selected_route)]
         selected_distributor = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="sec_distributor")
     with col6:
-        # Single date picker
-        selected_date = st.date_input("Select Date", key="sec_date")
-    with col7:
-        # Month selector
+        # Single date filter only
         secondary["Date"] = pd.to_datetime(secondary["Date"], errors="coerce")
-        months = secondary["Date"].dt.to_period("M").dropna().sort_values().unique()
-        selected_month = st.selectbox("Select Month", months, key="sec_month")
-    with col8: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
-    with col9: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
-    with col10: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
+        selected_date = st.date_input("Select Date", key="sec_date")
+    with col7: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
+    with col8: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
+    with col9: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
     search_sec = st.text_input("Search", key="sec_search")
 
     # Apply filters
@@ -328,8 +324,6 @@ with tab4:
     if selected_distributor: df = df[df["Distributor"].isin(selected_distributor)]
     if selected_date:
         df = df[df["Date"].dt.date == pd.to_datetime(selected_date).date()]
-    if selected_month:
-        df = df[df["Date"].dt.to_period("M") == selected_month]
     if selected_brand: df = df[df["Brand"].isin(selected_brand)]
     if selected_category: df = df[df["Category"].isin(selected_category)]
     if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
