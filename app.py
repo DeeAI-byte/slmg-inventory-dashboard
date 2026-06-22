@@ -367,12 +367,15 @@ with tab4:
             st.plotly_chart(fig_pack, use_container_width=True)
 
         st.divider()
-        # VPO Contribution
         vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
         fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
         st.plotly_chart(fig_vpo, use_container_width=True)
 
         st.divider()
         st.subheader("Detail Table")
+        # Ensure numeric columns are int for clean display
+        for col in ["QTY","NetRevenue"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
         st.dataframe(df, hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
