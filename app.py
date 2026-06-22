@@ -279,3 +279,93 @@ with tab3:
         # Detail table includes Brand and Pack Size automatically
         st.dataframe(df, hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Distributor_Overview.xlsx")
+with tab4:
+    st.header("Secondary Sales Overview")
+
+    # Filters in one line
+    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
+    with col1: selected_district = st.multiselect("District", sorted(secondary["District"].dropna().unique()), key="sec_district")
+    with col2:
+        sm_source = secondary.copy()
+        if selected_district: sm_source = sm_source[sm_source["District"].isin(selected_district)]
+        selected_sm = st.multiselect("SM", sorted(sm_source["SM"].dropna().unique()), key="sec_sm")
+    with col3:
+        asm_source = sm_source.copy()
+        if selected_sm: asm_source = asm_source[asm_source["SM"].isin(selected_sm)]
+        selected_asm = st.multiselect("ASM", sorted(asm_source["ASM"].dropna().unique()), key="sec_asm")
+    with col4:
+        route_source = asm_source.copy()
+        if selected_asm: route_source = route_source[route_source["ASM"].isin(selected_asm)]
+        selected_route = st.multiselect("Route", sorted(route_source["Route"].dropna().unique()), key="sec_route")
+    with col5:
+        dist_source = route_source.copy()
+        if selected_route: dist_source = dist_source[dist_source["Route"].isin(selected_route)]
+        selected_distributor = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="sec_distributor")
+    with col6: selected_date = st.date_input("Date", key="sec_date")  # can be customized to month→day drilldown
+    with col7: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
+    with col8: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
+    with col9: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
+    search_sec = st.text_input("Search", key="sec_search")
+
+    # Apply filters
+    df = secondary.copy()
+    if selected_district: df = df[df["District"].isin(selected_district)]
+    if selected_sm: df = df[df["SM"].isin(selected_sm)]
+    if selected_asm: df = df[df["ASM"].isin(selected_asm)]
+    if selected_route: df = df[df["Route"].isin(selected_route)]
+    if selected_distributor: df = df[df["Distributor"].isin(selected_distributor)]
+    if selected_date: df = df[df["Date"] == pd.to_datetime(selected_date)]
+    if selected_brand: df = df[df["Brand"].isin(selected_brand)]
+    if selected_category: df = df[df["Category"].isin(selected_category)]
+    if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
+    if search_sec:
+        mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
+        df = df[mask]
+
+    if df.empty:
+        st.warning("No data available for the selected filters.")
+    else:
+        # KPI Cards
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Total Outlets", int(df["Outlet"].nunique()))
+        k2.metric("Total Secondary Sales Volume", f"{int(df['QTY'].sum()):,}")
+        k3.metric("Total Secondary Sales Revenue", f"{int(df['Net Revenue'].sum()):,}")
+
+        st.divider()
+
+        # ASM Performance (Volume & Revenue)
+        asm_perf = df.groupby("ASM")[["QTY","Net Revenue"]].sum().reset_index()
+        fig_asm = px.bar(asm_perf, x="ASM", y=["QTY","Net Revenue"], barmode="group", title="ASM Performance (Volume & Revenue)")
+        st.plotly_chart(fig_asm, use_container_width=True)
+
+        st.divider()
+
+        # Brand Performance
+        brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Stock by Brand")
+        st.plotly_chart(fig_brand, use_container_width=True)
+
+        # Category Performance
+        category_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_cat = px.bar(category_perf, x="Category", y="QTY", text="QTY", title="Stock by Category")
+        st.plotly_chart(fig_cat, use_container_width=True)
+
+        # Pack Size Performance
+        pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Stock by Pack Size")
+        st.plotly_chart(fig_pack, use_container_width=True)
+
+        st.divider()
+
+        # VPO Contribution
+        vpo_perf = df.groupby("VPO Category")["QTY"].sum().reset_index()
+        vpo_perf["Contribution %"] = (vpo_perf["QTY"] / vpo_perf["QTY"].sum()) * 100
+        fig_vpo = px.pie(vpo_perf, names="VPO Category", values="Contribution %", title="VPO Contribution")
+        st.plotly_chart(fig_vpo, use_container_width=True)
+
+        st.divider()
+        st.subheader("Detail Table")
+        for col in df.select_dtypes(include=["int64","float64"]).columns:
+            df[col] = df[col].astype(int)
+        st.dataframe(df, hide_index=True, use_container_width=True, height=500)
+        st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Overview.xlsx")
