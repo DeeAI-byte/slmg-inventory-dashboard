@@ -371,5 +371,5 @@ with tab4:
 
         st.divider()
         st.subheader("Detail Table")
-        st.dataframe(df.head(1000), hide_index=True, width=1000, height=500)  # cap rows for stability
+        st.dataframe(df.head(1000), hide_index=True, use_container_width=True, height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
