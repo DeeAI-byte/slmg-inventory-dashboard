@@ -155,7 +155,7 @@ with tab2:
     with col1: selected_sites = st.multiselect("Site", sorted(risk["Unit"].dropna().unique()), key="risk_site")
     with col2:
         wh_source = risk.copy()
-        if selected_sites: wh_source = wh_source[risk["Unit"].isin(selected_sites)]
+        if selected_sites: wh_source = wh_source[wh_source["Unit"].isin(selected_sites)]
         selected_wh = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()), key="risk_wh")
     with col3: selected_sku = st.multiselect("SKU", sorted(risk["SKU"].dropna().unique()), key="risk_sku")
     with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="risk_exp")
