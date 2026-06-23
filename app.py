@@ -22,29 +22,40 @@ def load_file(file_path: str):
         return pd.read_excel(file_path)
 
 # -----------------------------
-# Load all four datasets
+# Load all datasets via dictionary
 # -----------------------------
 @st.cache_data
 def load_data():
-    master = load_file("Master Stock.xlsx")
-    risk = load_file("Near Expiry iNVENTORY_.xlsx")
-    distributor = load_file("DBR.xlsx")
-    secondary = load_file("Secondary.parquet")   # ✅ now using Parquet
+    files = {
+        "master": "Master Stock.xlsx",
+        "risk": "Near Expiry iNVENTORY_.xlsx",
+        "distributor": "DBR.xlsx",
+        "secondary": "Secondary.parquet"
+    }
 
-    # Strip whitespace from headers
-    for df in [master, risk, distributor, secondary]:
+    datasets = {}
+    for key, path in files.items():
+        df = load_file(path)
         df.columns = df.columns.str.strip()
+        datasets[key] = df
 
     # Clean numeric columns in secondary
-    if "QTY" in secondary.columns:
-        secondary["QTY"] = pd.to_numeric(secondary["QTY"], errors="coerce").fillna(0).astype(int)
-    if "NetRevenue" in secondary.columns:
-        secondary["NetRevenue"] = pd.to_numeric(secondary["NetRevenue"], errors="coerce").fillna(0).astype(int)
+    sec = datasets["secondary"]
+    if "QTY" in sec.columns:
+        sec["QTY"] = pd.to_numeric(sec["QTY"], errors="coerce").fillna(0).astype(int)
+    if "NetRevenue" in sec.columns:
+        sec["NetRevenue"] = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0).astype(int)
 
-    return master, risk, distributor, secondary
+    return datasets
 
-# ✅ Unpack all four datasets right after defining load_data
-master, risk, distributor, secondary = load_data()
+# ✅ Unpack all datasets
+datasets = load_data()
+master, risk, distributor, secondary = (
+    datasets["master"],
+    datasets["risk"],
+    datasets["distributor"],
+    datasets["secondary"]
+)
 
 # -----------------------------
 # Date cleanup starts below
