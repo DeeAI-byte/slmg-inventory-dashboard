@@ -29,9 +29,20 @@ def load_data():
     }
     datasets = {}
     for key, path in files.items():
-        df = load_file(path)
-        df.columns = df.columns.str.strip()
-        datasets[key] = df
+        try:
+            df = load_file(path)
+            df.columns = df.columns.str.strip()
+            datasets[key] = df
+        except Exception:
+            # If file missing, create empty DataFrame with expected columns
+            if key == "secondary":
+                datasets[key] = pd.DataFrame(columns=[
+                    "District","SM","ASM","Route","Distributor","Outlet",
+                    "Brand","Category","Pack Size","ITEMCODE","QTY","NetRevenue",
+                    "VPO","CustomerHierarchy"
+                ])
+            else:
+                datasets[key] = pd.DataFrame()
 
     # Clean numeric columns in secondary
     sec = datasets["secondary"]
