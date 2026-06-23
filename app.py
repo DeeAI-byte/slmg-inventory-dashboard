@@ -7,14 +7,29 @@ from io import BytesIO
 st.set_page_config(page_title="SLMG Inventory Hub", page_icon="banner_bg.png", layout="wide")
 
 # -----------------------------
+# Loader function
+# -----------------------------
+def load_file(file_path: str):
+    """
+    Universal loader for Excel, CSV, and Parquet.
+    Detects file type by extension and loads accordingly.
+    """
+    if file_path.endswith(".parquet"):
+        return pd.read_parquet(file_path)
+    elif file_path.endswith(".csv"):
+        return pd.read_csv(file_path)
+    else:
+        return pd.read_excel(file_path)
+
+# -----------------------------
 # Load all four datasets
 # -----------------------------
 @st.cache_data
 def load_data():
-    master = pd.read_excel("Master Stock.xlsx")
-    risk = pd.read_excel("Near Expiry iNVENTORY_.xlsx")
-    distributor = pd.read_excel("DBR.xlsx")
-    secondary = pd.read_excel("Secondary.xlsx")   # ✅ added Secondary
+    master = load_file("Master Stock.xlsx")
+    risk = load_file("Near Expiry iNVENTORY_.xlsx")
+    distributor = load_file("DBR.xlsx")
+    secondary = load_file("Secondary.parquet")   # ✅ now using Parquet
 
     # Strip whitespace from headers
     for df in [master, risk, distributor, secondary]:
