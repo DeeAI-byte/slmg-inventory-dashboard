@@ -308,19 +308,18 @@ with tab3:
 with tab4:
     st.header("Secondary Sales Overview")
 
-    # ✅ Initialize df before use
     df = secondary.copy()
 
     # Filters
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
-    with col1: selected_district = st.multiselect("District", sorted(secondary["District"].dropna().unique()), key="sec_district")
-    with col2: selected_sm = st.multiselect("SM", sorted(secondary["SM"].dropna().unique()), key="sec_sm")
-    with col3: selected_asm = st.multiselect("ASM", sorted(secondary["ASM"].dropna().unique()), key="sec_asm")
-    with col4: selected_route = st.multiselect("Route", sorted(secondary["Route"].dropna().unique()), key="sec_route")
-    with col5: selected_distributor = st.multiselect("Distributor", sorted(secondary["Distributor"].dropna().unique()), key="sec_distributor")
-    with col6: selected_brand = st.multiselect("Brand", sorted(secondary["Brand"].dropna().unique()), key="sec_brand")
-    with col7: selected_category = st.multiselect("Category", sorted(secondary["Category"].dropna().unique()), key="sec_category")
-    with col8: selected_pack = st.multiselect("Pack Size", sorted(secondary["Pack Size"].dropna().unique()), key="sec_pack")
+    with col1: selected_district = st.multiselect("District", sorted(df["District"].dropna().unique()), key="sec_district")
+    with col2: selected_sm = st.multiselect("SM", sorted(df["SM"].dropna().unique()), key="sec_sm")
+    with col3: selected_asm = st.multiselect("ASM", sorted(df["ASM"].dropna().unique()), key="sec_asm")
+    with col4: selected_route = st.multiselect("Route", sorted(df["Route"].dropna().unique()), key="sec_route")
+    with col5: selected_distributor = st.multiselect("Distributor", sorted(df["Distributor"].dropna().unique()), key="sec_distributor")
+    with col6: selected_brand = st.multiselect("Brand", sorted(df["Brand"].dropna().unique()), key="sec_brand")
+    with col7: selected_category = st.multiselect("Category", sorted(df["Category"].dropna().unique()), key="sec_category")
+    with col8: selected_pack = st.multiselect("Pack Size", sorted(df["Pack Size"].dropna().unique()), key="sec_pack")
     search_sec = st.text_input("Search", key="sec_search")
 
     # Apply filters
@@ -335,52 +334,50 @@ with tab4:
     if search_sec:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
-        
+
     # ✅ Always show KPIs/charts (zeros if empty)
-        # KPI Cards
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Outlets", int(df["Outlet"].nunique()))
-        c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df['QTY'].sum()):,}")
-        c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
-        c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Outlets", int(df["Outlet"].nunique()))
+    c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df['QTY'].sum()):,}")
+    c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
+    c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
 
-        st.divider()
+    st.divider()
 
-        # Charts
-        colA, colB = st.columns(2)
-        with colA:
-            asm_perf = df.groupby("ASM")[["QTY","NetRevenue"]].sum().reset_index().sort_values("QTY", ascending=False)
-            fig_asm = px.bar(asm_perf, x="ASM", y="QTY", text="QTY", title="ASM Performance (Volume)")
-            st.plotly_chart(fig_asm, width="stretch")
-        with colB:
-            brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
-            fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Brand Performance")
-            st.plotly_chart(fig_brand, width="stretch")
+    # Charts
+    colA, colB = st.columns(2)
+    with colA:
+        asm_perf = df.groupby("ASM")[["QTY","NetRevenue"]].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_asm = px.bar(asm_perf, x="ASM", y="QTY", text="QTY", title="ASM Performance (Volume)")
+        st.plotly_chart(fig_asm, use_container_width=True)
+    with colB:
+        brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Brand Performance")
+        st.plotly_chart(fig_brand, use_container_width=True)
 
-        st.divider()
-        colC, colD = st.columns(2)
-        with colC:
-            cat_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
-            fig_cat = px.bar(cat_perf, x="Category", y="QTY", text="QTY", title="Category Performance")
-            st.plotly_chart(fig_cat, width="stretch")
-        with colD:
-            pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
-            fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Pack Size Performance")
-            st.plotly_chart(fig_pack, width="stretch")
+    st.divider()
+    colC, colD = st.columns(2)
+    with colC:
+        cat_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_cat = px.bar(cat_perf, x="Category", y="QTY", text="QTY", title="Category Performance")
+        st.plotly_chart(fig_cat, use_container_width=True)
+    with colD:
+        pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
+        fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Pack Size Performance")
+        st.plotly_chart(fig_pack, use_container_width=True)
 
-        st.divider()
-        # Pie charts side by side
-        colE, colF = st.columns(2)
-        with colE:
-            vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
-            fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
-            st.plotly_chart(fig_vpo, width="stretch")
-        with colF:
-            cust_contrib = df.groupby("CustomerHierarchy")["QTY"].sum().reset_index()
-            fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values="QTY", title="CustomerHierarchy Contribution")
-            st.plotly_chart(fig_cust, width="stretch")
+    st.divider()
+    colE, colF = st.columns(2)
+    with colE:
+        vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
+        fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
+        st.plotly_chart(fig_vpo, use_container_width=True)
+    with colF:
+        cust_contrib = df.groupby("CustomerHierarchy")["QTY"].sum().reset_index()
+        fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values="QTY", title="CustomerHierarchy Contribution")
+        st.plotly_chart(fig_cust, use_container_width=True)
 
-        st.divider()
-        st.subheader("Detail Table")
-        st.dataframe(df.head(1000), hide_index=True, width="stretch", height=500)
-        st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
+    st.divider()
+    st.subheader("Detail Table")
+    st.dataframe(df.head(1000), hide_index=True, use_container_width=True, height=500)
+    st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
