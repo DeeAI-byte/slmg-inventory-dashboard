@@ -373,22 +373,22 @@ with tab4:
         with colA:
             asm_perf = df.groupby("ASM")[["QTY","NetRevenue"]].sum().reset_index().sort_values("QTY", ascending=False)
             fig_asm = px.bar(asm_perf, x="ASM", y="QTY", text="QTY", title="ASM Performance (Volume)")
-            st.plotly_chart(fig_asm, use_container_width=True)
+            st.plotly_chart(fig_asm, width="stretch")
         with colB:
             brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
             fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Brand Performance")
-            st.plotly_chart(fig_brand, use_container_width=True)
+            st.plotly_chart(fig_brand, width="stretch")
 
         st.divider()
         colC, colD = st.columns(2)
         with colC:
             cat_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
             fig_cat = px.bar(cat_perf, x="Category", y="QTY", text="QTY", title="Category Performance")
-            st.plotly_chart(fig_cat, use_container_width=True)
+            st.plotly_chart(fig_cat, width="stretch")
         with colD:
             pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
             fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Pack Size Performance")
-            st.plotly_chart(fig_pack, use_container_width=True)
+            st.plotly_chart(fig_pack, width="stretch")
 
         st.divider()
         # Pie charts side by side: VPO Contribution + CustomerHierarchy
@@ -396,13 +396,13 @@ with tab4:
         with colE:
             vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
             fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
-            st.plotly_chart(fig_vpo, use_container_width=True)
+            st.plotly_chart(fig_vpo, width="stretch")
         with colF:
             cust_contrib = df.groupby("CustomerHierarchy")["QTY"].sum().reset_index()
             fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values="QTY", title="CustomerHierarchy Contribution")
-            st.plotly_chart(fig_cust, use_container_width=True)
+            st.plotly_chart(fig_cust, width="stretch")
 
         st.divider()
         st.subheader("Detail Table")
-        st.dataframe(df.head(1000), hide_index=True, use_container_width=True, height=500)
+        st.dataframe(df.head(1000), hide_index=True, width="stretch", height=500)
         st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
