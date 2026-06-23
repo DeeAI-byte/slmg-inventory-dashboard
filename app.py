@@ -335,10 +335,8 @@ with tab4:
     if search_sec:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
-
-    if df.empty:
-        st.warning("No data available for the selected filters.")
-    else:
+        
+    # ✅ Always show KPIs/charts (zeros if empty)
         # KPI Cards
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Outlets", int(df["Outlet"].nunique()))
