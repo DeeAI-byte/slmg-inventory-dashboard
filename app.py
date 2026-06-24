@@ -65,13 +65,20 @@ master, risk, distributor, secondary = (
 # Date cleanup
 # -----------------------------
 for col in ["MFG Date","EXP Date","DOD Date"]:
-    if col in master.columns: master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
+    if col in master.columns:
+        master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
+
 for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
-    if col in risk.columns: risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
-for col in ["MFG Date","EXP Date","BBD/Expiry"]:
-    if col in distributor.columns: distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
-        # Keep EXP Date exactly as in Excel (string display)
+    if col in risk.columns:
+        risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
+
+for col in ["MFG Date","BBD/Expiry"]:
+    if col in distributor.columns:
+        distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
+
+# 👇 Handle EXP Date separately (outside the loop)
 if "EXP Date" in distributor.columns:
+    # Keep raw Excel values visible
     distributor["EXP Date"] = distributor["EXP Date"].astype(str).str.strip()
 
     # Calculate Days to BBD safely
