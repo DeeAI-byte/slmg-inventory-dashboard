@@ -417,14 +417,20 @@ with tab4:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
 
-    # ✅ Always show KPIs/charts (zeros if empty)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Outlets", int(df["Outlet"].nunique()))
-    c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df['QTY'].sum()):,}")
-    c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
-    c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
+# ✅ Always show KPIs/charts (zeros if empty)
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Total Outlets", int(df["Outlet"].nunique()))
+c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df['QTY'].sum()):,}")
+c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
+c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
 
-    st.divider()
+# ✅ New KPI for NSR
+total_qty = df["QTY"].sum()
+total_rev = df["NetRevenue"].sum()
+nsr = total_rev / total_qty if total_qty > 0 else 0
+c5.metric("NSR (Revenue per Unit)", f"{nsr:.2f}")
+
+st.divider()
 
     # Charts
     colA, colB = st.columns(2)
