@@ -385,29 +385,34 @@ with tab3:
 with tab4:
     st.header("Secondary Sales Overview")
 
-    df = secondary.copy()
+    # Cascading filters: each filter's options are narrowed by every filter
+    # selected before it (District -> SM -> ASM -> Route -> Distributor ->
+    # Brand -> Category -> Pack Size), left to right. This is lighter on
+    # CPU/RAM than mutual cross-filtering since each column is only
+    # filtered once instead of being recomputed against every other column.
+    cascade_columns = [
+        ("District", "sec_district"),
+        ("SM", "sec_sm"),
+        ("ASM", "sec_asm"),
+        ("Route", "sec_route"),
+        ("Distributor", "sec_distributor"),
+        ("Brand", "sec_brand"),
+        ("Category", "sec_category"),
+        ("Pack Size", "sec_pack"),
+    ]
 
-    # Filters
-    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
-    with col1: selected_district = st.multiselect("District", sorted(df["District"].dropna().unique()), key="sec_district")
-    with col2: selected_sm = st.multiselect("SM", sorted(df["SM"].dropna().unique()), key="sec_sm")
-    with col3: selected_asm = st.multiselect("ASM", sorted(df["ASM"].dropna().unique()), key="sec_asm")
-    with col4: selected_route = st.multiselect("Route", sorted(df["Route"].dropna().unique()), key="sec_route")
-    with col5: selected_distributor = st.multiselect("Distributor", sorted(df["Distributor"].dropna().unique()), key="sec_distributor")
-    with col6: selected_brand = st.multiselect("Brand", sorted(df["Brand"].dropna().unique()), key="sec_brand")
-    with col7: selected_category = st.multiselect("Category", sorted(df["Category"].dropna().unique()), key="sec_category")
-    with col8: selected_pack = st.multiselect("Pack Size", sorted(df["Pack Size"].dropna().unique()), key="sec_pack")
+    cols = st.columns(8)
+    source = secondary.copy()
+    for (col_name, widget_key), col in zip(cascade_columns, cols):
+        with col:
+            options = sorted(source[col_name].dropna().unique())
+            selected_values = st.multiselect(col_name, options, key=widget_key)
+        if selected_values:
+            source = source[source[col_name].isin(selected_values)]
+
     search_sec = st.text_input("Search", key="sec_search")
 
-    # Apply filters
-    if selected_district: df = df[df["District"].isin(selected_district)]
-    if selected_sm: df = df[df["SM"].isin(selected_sm)]
-    if selected_asm: df = df[df["ASM"].isin(selected_asm)]
-    if selected_route: df = df[df["Route"].isin(selected_route)]
-    if selected_distributor: df = df[df["Distributor"].isin(selected_distributor)]
-    if selected_brand: df = df[df["Brand"].isin(selected_brand)]
-    if selected_category: df = df[df["Category"].isin(selected_category)]
-    if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
+    df = source.copy()
     if search_sec:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
