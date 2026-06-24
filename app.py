@@ -17,6 +17,32 @@ def load_file(file_path: str):
         return pd.read_excel(file_path)
 
 # -----------------------------
+# Memory optimization helper
+# -----------------------------
+def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert low-cardinality string columns to category and downcast numerics.
+    This can cut memory usage by 80-90% on typical wide, repetitive datasets."""
+    if df.empty:
+        return df
+
+    n = len(df)
+    for col in df.columns:
+        col_dtype = df[col].dtype
+        if col_dtype == object or str(col_dtype) == "str":
+            try:
+                nunique = df[col].nunique()
+                # Only convert if values repeat a lot (cheap heuristic threshold)
+                if n > 0 and nunique / n < 0.5:
+                    df[col] = df[col].astype("category")
+            except TypeError:
+                pass  # unhashable values, skip
+        elif col_dtype == "int64":
+            df[col] = pd.to_numeric(df[col], downcast="integer")
+        elif col_dtype == "float64":
+            df[col] = pd.to_numeric(df[col], downcast="float")
+    return df
+
+# -----------------------------
 # Load all datasets via dictionary
 # -----------------------------
 @st.cache_data
@@ -50,6 +76,10 @@ def load_data():
         sec["QTY"] = pd.to_numeric(sec["QTY"], errors="coerce").fillna(0).astype(int)
     if "NetRevenue" in sec.columns:
         sec["NetRevenue"] = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0).astype(int)
+
+    # Apply memory optimization to every dataset (runs once, cached)
+    for key in datasets:
+        datasets[key] = optimize_dtypes(datasets[key])
 
     return datasets
 
@@ -105,6 +135,21 @@ def export_excel(df):
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, index=False)
     return output.getvalue()
+
+def lazy_export_section(df, file_name: str, button_key: str):
+    """Only builds the Excel file in memory when the user explicitly asks for it,
+    instead of regenerating it on every rerun of every tab."""
+    if st.button(f"Prepare Export ({file_name})", key=f"{button_key}_prepare"):
+        st.session_state[f"{button_key}_bytes"] = export_excel(df)
+
+    cached_bytes = st.session_state.get(f"{button_key}_bytes")
+    if cached_bytes is not None:
+        st.download_button(
+            "Download Excel",
+            cached_bytes,
+            file_name=file_name,
+            key=f"{button_key}_download"
+        )
 
 st.markdown("<h2 style='text-align:center; font-family:Georgia; font-size:32px;'>Coca‑Cola | SLMG Beverages</h2>", unsafe_allow_html=True)
 tab1, tab2, tab3, tab4 = st.tabs(["Stock Overview", "Risk Stock Overview", "Distributor Stock Overview", "Secondary Sales Overview"])
@@ -166,7 +211,7 @@ with tab1:
 
     st.subheader("Detail Table")
     st.dataframe(filtered, hide_index=True, width="stretch", height=500)
-    st.download_button("Export to Excel", export_excel(filtered), file_name="Stock_Overview.xlsx")
+    lazy_export_section(filtered, "Stock_Overview.xlsx", "stock")
 with tab2:
     st.header("Risk Stock Overview")
 
@@ -241,7 +286,7 @@ with tab2:
         st.divider()
         st.subheader("Detail Table")
         st.dataframe(rf, hide_index=True, width="stretch", height=500)
-        st.download_button("Export to Excel", export_excel(rf), file_name="Risk_Overview.xlsx")
+        lazy_export_section(rf, "Risk_Overview.xlsx", "risk")
 with tab3:
     st.header("Distributor Stock Overview")
 
@@ -336,7 +381,7 @@ with tab3:
         for col in df.select_dtypes(include=["int64","float64"]).columns:
             df[col] = df[col].fillna(0).astype(int)  # safer cast
         st.dataframe(df, hide_index=True, use_container_width=True, height=500)
-        st.download_button("Export to Excel", export_excel(df), file_name="Distributor_Overview.xlsx")
+        lazy_export_section(df, "Distributor_Overview.xlsx", "dist")
 with tab4:
     st.header("Secondary Sales Overview")
 
@@ -412,4 +457,4 @@ with tab4:
     st.divider()
     st.subheader("Detail Table")
     st.dataframe(df.head(1000), hide_index=True, use_container_width=True, height=500)
-    st.download_button("Export to Excel", export_excel(df), file_name="Secondary_Sales_Overview.xlsx")
+    lazy_export_section(df, "Secondary_Sales_Overview.xlsx", "sec")
