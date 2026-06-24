@@ -70,6 +70,19 @@ for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
     if col in risk.columns: risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
 for col in ["MFG Date","EXP Date","BBD/Expiry"]:
     if col in distributor.columns: distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
+        # Keep EXP Date exactly as in Excel (string display)
+if "EXP Date" in distributor.columns:
+    distributor["EXP Date"] = distributor["EXP Date"].astype(str).str.strip()
+
+    # Calculate Days to BBD safely
+    distributor["Days to BBD"] = (
+        pd.to_datetime(distributor["EXP Date"], errors="coerce", dayfirst=True) - pd.to_datetime("today")
+    ).dt.days
+
+    # Create BBD Status from Days to BBD
+    distributor["BBD Status"] = "Safe"
+    distributor.loc[distributor["Days to BBD"] < 30, "BBD Status"] = "Critical"
+    distributor.loc[(distributor["Days to BBD"] >= 31) & (distributor["Days to BBD"] <= 90), "BBD Status"] = "Warning"
 
 st.markdown("<style>.block-container {padding-top: 1.5rem;}</style>", unsafe_allow_html=True)
 
