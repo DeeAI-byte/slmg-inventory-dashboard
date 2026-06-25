@@ -102,6 +102,19 @@ for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
     if col in risk.columns:
         risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
 
+# Create BBD Status for risk from "Days to BBD" (this was missing, which
+# caused a KeyError whenever the Expiry Status filter was used)
+if "Days to BBD" in risk.columns:
+    risk["Days to BBD"] = pd.to_numeric(risk["Days to BBD"], errors="coerce")
+    risk["BBD Status"] = "Safe"
+    risk.loc[risk["Days to BBD"] < 30, "BBD Status"] = "Critical"
+    risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
+
+# Round numeric columns to whole numbers (Quantity, Consumed inventory,
+# Days to DOD/LBD/SBD/BBD, etc. come in from Excel with long decimals)
+for col in risk.select_dtypes(include=["int64", "float64"]).columns:
+    risk[col] = pd.to_numeric(risk[col], errors="coerce").fillna(0).round().astype(int)
+
 for col in ["MFG Date","BBD/Expiry"]:
     if col in distributor.columns:
         distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
