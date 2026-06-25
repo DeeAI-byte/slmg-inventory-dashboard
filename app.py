@@ -111,8 +111,11 @@ if "Days to BBD" in risk.columns:
     risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
 
 # Round numeric columns to whole numbers (Quantity, Consumed inventory,
-# Days to DOD/LBD/SBD/BBD, etc. come in from Excel with long decimals)
-for col in risk.select_dtypes(include=["int64", "float64"]).columns:
+# Days to DOD/LBD/SBD/BBD, etc. come in from Excel with long decimals).
+# Uses include="number" instead of explicit int64/float64 dtype names,
+# since optimize_dtypes() downcasts to float32/int32 etc. earlier, and
+# those wouldn't match a literal int64/float64 check.
+for col in risk.select_dtypes(include="number").columns:
     risk[col] = pd.to_numeric(risk[col], errors="coerce").fillna(0).round().astype(int)
 
 for col in ["MFG Date","BBD/Expiry"]:
