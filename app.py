@@ -96,11 +96,11 @@ master, risk, distributor, secondary = (
 # -----------------------------
 for col in ["MFG Date","EXP Date","DOD Date"]:
     if col in master.columns:
-        master[col] = pd.to_datetime(master[col], errors="coerce").dt.date
+        master[col] = pd.to_datetime(master[col], errors="coerce", dayfirst=True).dt.date
 
 for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
     if col in risk.columns:
-        risk[col] = pd.to_datetime(risk[col], errors="coerce").dt.date
+        risk[col] = pd.to_datetime(risk[col], errors="coerce", dayfirst=True).dt.date
 
 # Create BBD Status for risk from "Days to BBD" (this was missing, which
 # caused a KeyError whenever the Expiry Status filter was used)
@@ -120,7 +120,7 @@ for col in risk.select_dtypes(include="number").columns:
 
 for col in ["MFG Date","BBD/Expiry"]:
     if col in distributor.columns:
-        distributor[col] = pd.to_datetime(distributor[col], errors="coerce").dt.date
+        distributor[col] = pd.to_datetime(distributor[col], errors="coerce", dayfirst=True).dt.date
 
 # 👇 Handle EXP Date separately (outside the loop)
 if "EXP Date" in distributor.columns:
