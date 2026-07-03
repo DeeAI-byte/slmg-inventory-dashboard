@@ -70,10 +70,11 @@ def load_data():
             else:
                 datasets[key] = pd.DataFrame()
 
-    # Clean numeric columns in secondary
+    # Clean numeric columns in secondary (handle Qty vs QTY column name variants)
     sec = datasets["secondary"]
-    if "QTY" in sec.columns:
-        sec["QTY"] = pd.to_numeric(sec["QTY"], errors="coerce").fillna(0).astype(int)
+    qty_key = "Qty" if "Qty" in sec.columns else "QTY"
+    if qty_key in sec.columns:
+        sec[qty_key] = pd.to_numeric(sec[qty_key], errors="coerce").fillna(0).astype(int)
     if "NetRevenue" in sec.columns:
         sec["NetRevenue"] = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0).astype(int)
 
@@ -406,13 +407,14 @@ with tab4:
     # Brand -> Category -> Pack Size), left to right. This is lighter on
     # CPU/RAM than mutual cross-filtering since each column is only
     # filtered once instead of being recomputed against every other column.
+    brand_filter_col = "Brands" if "Brands" in secondary.columns else "Brand"
     cascade_columns = [
         ("District", "sec_district"),
         ("SM", "sec_sm"),
         ("ASM", "sec_asm"),
         ("Route", "sec_route"),
         ("Distributor", "sec_distributor"),
-        ("Brand", "sec_brand"),
+        (brand_filter_col, "sec_brand"),
         ("Category", "sec_category"),
         ("Pack Size", "sec_pack"),
     ]
@@ -434,51 +436,65 @@ with tab4:
         df = df[mask]
 
     # ✅ Always show KPIs/charts (zeros if empty)
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Total Outlets", int(df["Outlet"].nunique()))
-    c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df['QTY'].sum()):,}")
+    # Handle column name variants between parquet versions
+    qty_col = "Qty" if "Qty" in df.columns else "QTY"
+    outlet_col = "Outlet Code" if "Outlet Code" in df.columns else "Outlet"
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Total Outlets", int(df[outlet_col].nunique()))
+    c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df[qty_col].sum()):,}")
     c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
     c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
 
-    # ✅ NSR (Revenue per Unit)
-    total_qty = df["QTY"].sum()
+    # NSR (Revenue per Unit)
+    total_qty = df[qty_col].sum()
     total_rev = df["NetRevenue"].sum()
     nsr = total_rev / total_qty if total_qty > 0 else 0
     c5.metric("NSR (Revenue per Unit)", f"{nsr:.2f}")
 
+    # Avg IPS (Items Per Store) = total IPS Count / unique outlets
+    # IPS Count is pre-flagged in the parquet: 1 if the item qualifies, 0 otherwise
+    if "IPS Count" in df.columns:
+        avg_ips = df["IPS Count"].sum() / df[outlet_col].nunique() if df[outlet_col].nunique() > 0 else 0
+    else:
+        # Fallback: count unique SKUs per outlet then average
+        avg_ips = df.groupby(outlet_col)["ITEMCODE"].nunique().mean() if not df.empty else 0
+    c6.metric("Avg IPS (Items per Store)", f"{avg_ips:.2f}")
+
     st.divider()
 
     # Charts
+    brand_col = "Brands" if "Brands" in df.columns else "Brand"
     colA, colB = st.columns(2)
     with colA:
-        asm_perf = df.groupby("ASM")[["QTY","NetRevenue"]].sum().reset_index().sort_values("QTY", ascending=False)
-        fig_asm = px.bar(asm_perf, x="ASM", y="QTY", text="QTY", title="ASM Performance (Volume)")
+        asm_perf = df.groupby("ASM")[[qty_col,"NetRevenue"]].sum().reset_index().sort_values(qty_col, ascending=False)
+        fig_asm = px.bar(asm_perf, x="ASM", y=qty_col, text=qty_col, title="ASM Performance (Volume)")
         st.plotly_chart(fig_asm, use_container_width=True)
     with colB:
-        brand_perf = df.groupby("Brand")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
-        fig_brand = px.bar(brand_perf, x="Brand", y="QTY", text="QTY", title="Brand Performance")
+        brand_perf = df.groupby(brand_col)[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
+        fig_brand = px.bar(brand_perf, x=brand_col, y=qty_col, text=qty_col, title="Brand Performance")
         st.plotly_chart(fig_brand, use_container_width=True)
 
     st.divider()
     colC, colD = st.columns(2)
     with colC:
-        cat_perf = df.groupby("Category")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
-        fig_cat = px.bar(cat_perf, x="Category", y="QTY", text="QTY", title="Category Performance")
+        cat_perf = df.groupby("Category")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
+        fig_cat = px.bar(cat_perf, x="Category", y=qty_col, text=qty_col, title="Category Performance")
         st.plotly_chart(fig_cat, use_container_width=True)
     with colD:
-        pack_perf = df.groupby("Pack Size")["QTY"].sum().reset_index().sort_values("QTY", ascending=False)
-        fig_pack = px.bar(pack_perf, x="Pack Size", y="QTY", text="QTY", title="Pack Size Performance")
+        pack_perf = df.groupby("Pack Size")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
+        fig_pack = px.bar(pack_perf, x="Pack Size", y=qty_col, text=qty_col, title="Pack Size Performance")
         st.plotly_chart(fig_pack, use_container_width=True)
 
     st.divider()
     colE, colF = st.columns(2)
     with colE:
-        vpo_contrib = df.groupby("VPO")["QTY"].sum().reset_index()
-        fig_vpo = px.pie(vpo_contrib, names="VPO", values="QTY", title="VPO Contribution")
+        vpo_contrib = df.groupby("VPO")[qty_col].sum().reset_index()
+        fig_vpo = px.pie(vpo_contrib, names="VPO", values=qty_col, title="VPO Contribution")
         st.plotly_chart(fig_vpo, use_container_width=True)
     with colF:
-        cust_contrib = df.groupby("CustomerHierarchy")["QTY"].sum().reset_index()
-        fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values="QTY", title="CustomerHierarchy Contribution")
+        cust_contrib = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
+        fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
         st.plotly_chart(fig_cust, use_container_width=True)
 
     st.divider()
