@@ -213,6 +213,8 @@ with tab1:
     # Chart
     stock_site = filtered.groupby("Site")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
     fig = px.bar(stock_site, x="Site", y="Quantity", text="Quantity", title="Stock By Site")
+    fig.update_traces(texttemplate='%{text:,}', textposition='outside')
+    fig.update_yaxes(tickformat="d")
     st.plotly_chart(fig, width="stretch")
 
     # Tables
@@ -440,26 +442,24 @@ with tab4:
     qty_col = "Qty" if "Qty" in df.columns else "QTY"
     outlet_col = "Outlet Code" if "Outlet Code" in df.columns else "Outlet"
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Total Outlets", int(df[outlet_col].nunique()))
     c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df[qty_col].sum()):,}")
     c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
-    c4.metric("Unique SKUs", int(df["ITEMCODE"].nunique()))
 
-    # NSR (Revenue per Unit)
+    # NSR (Revenue per Unit) — whole number
     total_qty = df[qty_col].sum()
     total_rev = df["NetRevenue"].sum()
-    nsr = total_rev / total_qty if total_qty > 0 else 0
-    c5.metric("NSR (Revenue per Unit)", f"{nsr:.2f}")
+    nsr = round(total_rev / total_qty) if total_qty > 0 else 0
+    c4.metric("NSR (Revenue per Unit)", f"{int(nsr):,}")
 
-    # Avg IPS (Items Per Store) = total IPS Count / unique outlets
-    # IPS Count is pre-flagged in the parquet: 1 if the item qualifies, 0 otherwise
-    if "IPS Count" in df.columns:
-        avg_ips = df["IPS Count"].sum() / df[outlet_col].nunique() if df[outlet_col].nunique() > 0 else 0
+    # Avg IPS = average number of unique IPS items per outlet
+    # Uses nunique() on the IPS column grouped by outlet — matches pivot table logic
+    if "IPS" in df.columns and not df.empty:
+        avg_ips = round(df.groupby(outlet_col)["IPS"].nunique().mean())
     else:
-        # Fallback: count unique SKUs per outlet then average
-        avg_ips = df.groupby(outlet_col)["ITEMCODE"].nunique().mean() if not df.empty else 0
-    c6.metric("Avg IPS (Items per Store)", f"{avg_ips:.2f}")
+        avg_ips = 0
+    c5.metric("Avg IPS (Items per Store)", int(avg_ips))
 
     st.divider()
 
@@ -468,33 +468,49 @@ with tab4:
     colA, colB = st.columns(2)
     with colA:
         asm_perf = df.groupby("ASM")[[qty_col,"NetRevenue"]].sum().reset_index().sort_values(qty_col, ascending=False)
+        asm_perf[qty_col] = asm_perf[qty_col].round().astype(int)
         fig_asm = px.bar(asm_perf, x="ASM", y=qty_col, text=qty_col, title="ASM Performance (Volume)")
+        fig_asm.update_traces(texttemplate='%{text:,}', textposition='outside')
+        fig_asm.update_yaxes(tickformat="d")
         st.plotly_chart(fig_asm, use_container_width=True)
     with colB:
         brand_perf = df.groupby(brand_col)[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
+        brand_perf[qty_col] = brand_perf[qty_col].round().astype(int)
         fig_brand = px.bar(brand_perf, x=brand_col, y=qty_col, text=qty_col, title="Brand Performance")
+        fig_brand.update_traces(texttemplate='%{text:,}', textposition='outside')
+        fig_brand.update_yaxes(tickformat="d")
         st.plotly_chart(fig_brand, use_container_width=True)
 
     st.divider()
     colC, colD = st.columns(2)
     with colC:
         cat_perf = df.groupby("Category")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
+        cat_perf[qty_col] = cat_perf[qty_col].round().astype(int)
         fig_cat = px.bar(cat_perf, x="Category", y=qty_col, text=qty_col, title="Category Performance")
+        fig_cat.update_traces(texttemplate='%{text:,}', textposition='outside')
+        fig_cat.update_yaxes(tickformat="d")
         st.plotly_chart(fig_cat, use_container_width=True)
     with colD:
         pack_perf = df.groupby("Pack Size")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
+        pack_perf[qty_col] = pack_perf[qty_col].round().astype(int)
         fig_pack = px.bar(pack_perf, x="Pack Size", y=qty_col, text=qty_col, title="Pack Size Performance")
+        fig_pack.update_traces(texttemplate='%{text:,}', textposition='outside')
+        fig_pack.update_yaxes(tickformat="d")
         st.plotly_chart(fig_pack, use_container_width=True)
 
     st.divider()
     colE, colF = st.columns(2)
     with colE:
         vpo_contrib = df.groupby("VPO")[qty_col].sum().reset_index()
+        vpo_contrib[qty_col] = vpo_contrib[qty_col].round().astype(int)
         fig_vpo = px.pie(vpo_contrib, names="VPO", values=qty_col, title="VPO Contribution")
+        fig_vpo.update_traces(texttemplate='%{value:,}')
         st.plotly_chart(fig_vpo, use_container_width=True)
     with colF:
         cust_contrib = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
+        cust_contrib[qty_col] = cust_contrib[qty_col].round().astype(int)
         fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
+        fig_cust.update_traces(texttemplate='%{value:,}')
         st.plotly_chart(fig_cust, use_container_width=True)
 
     st.divider()
