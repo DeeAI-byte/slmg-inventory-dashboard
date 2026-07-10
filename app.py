@@ -404,12 +404,9 @@ with tab3:
 with tab4:
     st.header("Secondary Sales Overview")
 
-    # Cascading filters: each filter's options are narrowed by every filter
-    # selected before it (District -> SM -> ASM -> Route -> Distributor ->
-    # Brand -> Category -> Pack Size), left to right. This is lighter on
-    # CPU/RAM than mutual cross-filtering since each column is only
-    # filtered once instead of being recomputed against every other column.
     brand_filter_col = "Brands" if "Brands" in secondary.columns else "Brand"
+
+    # Row 1: 8 cascading dimension filters
     cascade_columns = [
         ("District", "sec_district"),
         ("SM", "sec_sm"),
@@ -430,7 +427,23 @@ with tab4:
         if selected_values:
             source = source[source[col_name].isin(selected_values)]
 
-    search_sec = st.text_input("Search", key="sec_search")
+    # Row 2: Month, Date filters + Search (compact layout)
+    f1, f2, f3, f4 = st.columns([1, 2, 2, 3])
+    with f1:
+        month_options = sorted(source["Month"].dropna().unique()) if "Month" in source.columns else []
+        selected_months = st.multiselect("Month", month_options, key="sec_month")
+    with f2:
+        date_options = sorted(source["Date"].dropna().unique()) if "Date" in source.columns else []
+        selected_dates = st.multiselect("Date", date_options, key="sec_date")
+    with f3:
+        search_sec = st.text_input("Search", key="sec_search")
+    with f4:
+        pass  # intentional spacer to keep search compact
+
+    if selected_months:
+        source = source[source["Month"].isin(selected_months)]
+    if selected_dates:
+        source = source[source["Date"].isin(selected_dates)]
 
     df = source.copy()
     if search_sec:
@@ -504,13 +517,13 @@ with tab4:
         vpo_contrib = df.groupby("VPO")[qty_col].sum().reset_index()
         vpo_contrib[qty_col] = vpo_contrib[qty_col].round().astype(int)
         fig_vpo = px.pie(vpo_contrib, names="VPO", values=qty_col, title="VPO Contribution")
-        fig_vpo.update_traces(texttemplate='%{value:,}')
+        fig_vpo.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
         st.plotly_chart(fig_vpo, use_container_width=True)
     with colF:
         cust_contrib = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
         cust_contrib[qty_col] = cust_contrib[qty_col].round().astype(int)
         fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
-        fig_cust.update_traces(texttemplate='%{value:,}')
+        fig_cust.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
         st.plotly_chart(fig_cust, use_container_width=True)
 
     st.divider()
