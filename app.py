@@ -264,7 +264,6 @@ with tab2:
         st.subheader("Detail Table")
         st.dataframe(rf, hide_index=True, width="stretch", height=500)
         lazy_export_section(rf, "Risk_Overview.xlsx", "risk")
-
 with tab3:
     st.header("Distributor Stock Overview")
 
@@ -312,8 +311,6 @@ with tab3:
         fig_dist = px.bar(stock_district, x="District", y="Quantity",
                           text=stock_district["Quantity"].astype(int),
                           title="Stock by District")
-        fig_dist.update_traces(texttemplate='%{text:,}', textposition='outside')
-        fig_dist.update_yaxes(tickformat="d")
         st.plotly_chart(fig_dist, width="stretch")
 
         colA, colB = st.columns(2)
@@ -322,16 +319,12 @@ with tab3:
             fig_brand = px.bar(stock_brand, x="Brand", y="Quantity",
                                text=stock_brand["Quantity"].astype(int),
                                title="Stock by Brand")
-            fig_brand.update_traces(texttemplate='%{text:,}', textposition='outside')
-            fig_brand.update_yaxes(tickformat="d")
             st.plotly_chart(fig_brand, width="stretch")
-                with colB:
+        with colB:
             stock_pack = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
             fig_pack = px.bar(stock_pack, x="Pack Size", y="Quantity",
                               text=stock_pack["Quantity"].astype(int),
                               title="Stock by Pack Size")
-            fig_pack.update_traces(texttemplate='%{text:,}', textposition='outside')
-            fig_pack.update_yaxes(tickformat="d")
             st.plotly_chart(fig_pack, width="stretch")
 
         st.divider()
@@ -356,7 +349,7 @@ with tab3:
         st.divider()
         st.subheader("Detail Table")
         for col in df.select_dtypes(include=["int64","float64"]).columns:
-            df[col] = df[col].fillna(0).astype(int)  # safer cast
+            df[col] = df[col].fillna(0).astype(int)
         st.dataframe(df, hide_index=True, width="stretch", height=500)
         lazy_export_section(df, "Distributor_Overview.xlsx", "dist")
 with tab4:
@@ -364,7 +357,6 @@ with tab4:
 
     brand_filter_col = "Brands" if "Brands" in secondary.columns else "Brand"
 
-    # Cascading filters
     cascade_columns = [
         ("District", "sec_district"),
         ("SM", "sec_sm"),
@@ -404,10 +396,10 @@ with tab4:
         mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
         df = df[mask]
 
-    # KPIs
     qty_col = "Qty" if "Qty" in df.columns else "QTY"
     outlet_col = "Outlet Code" if "Outlet Code" in df.columns else "Outlet"
 
+    # KPI Cards
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Total Outlets", int(df[outlet_col].nunique()) if outlet_col in df.columns else 0)
     c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df[qty_col].sum()):,}" if qty_col in df.columns else "0")
