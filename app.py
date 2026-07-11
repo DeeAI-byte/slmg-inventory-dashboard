@@ -21,25 +21,25 @@ def load_file(file_path: str):
 # -----------------------------
 def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     """Convert low-cardinality string columns to category and downcast numerics.
-    This can cut memory usage by 80-90% on typical wide, repetitive datasets."""
+    This can cut memory usage by 80-90% on typical wide, repetitive datasets.
+    Uses pd.api.types helpers instead of dtype == object comparisons, which
+    is safer across pandas 2.x and 3.x (pandas 3.0 changed string internals)."""
     if df.empty:
         return df
 
     n = len(df)
     for col in df.columns:
-        col_dtype = df[col].dtype
-        if col_dtype == object or str(col_dtype) == "str":
-            try:
+        try:
+            if pd.api.types.is_string_dtype(df[col]) or pd.api.types.is_object_dtype(df[col]):
                 nunique = df[col].nunique()
-                # Only convert if values repeat a lot (cheap heuristic threshold)
                 if n > 0 and nunique / n < 0.5:
                     df[col] = df[col].astype("category")
-            except TypeError:
-                pass  # unhashable values, skip
-        elif col_dtype == "int64":
-            df[col] = pd.to_numeric(df[col], downcast="integer")
-        elif col_dtype == "float64":
-            df[col] = pd.to_numeric(df[col], downcast="float")
+            elif pd.api.types.is_integer_dtype(df[col]):
+                df[col] = pd.to_numeric(df[col], downcast="integer")
+            elif pd.api.types.is_float_dtype(df[col]):
+                df[col] = pd.to_numeric(df[col], downcast="float")
+        except Exception:
+            pass  # skip any column that causes issues
     return df
 
 # -----------------------------
