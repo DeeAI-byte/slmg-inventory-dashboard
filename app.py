@@ -20,13 +20,8 @@ def load_file(file_path: str):
 # Memory optimization helper
 # -----------------------------
 def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert low-cardinality string columns to category and downcast numerics.
-    This can cut memory usage by 80-90% on typical wide, repetitive datasets.
-    Uses pd.api.types helpers instead of dtype == object comparisons, which
-    is safer across pandas 2.x and 3.x (pandas 3.0 changed string internals)."""
     if df.empty:
         return df
-
     n = len(df)
     for col in df.columns:
         try:
@@ -39,13 +34,13 @@ def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
             elif pd.api.types.is_float_dtype(df[col]):
                 df[col] = pd.to_numeric(df[col], downcast="float")
         except Exception:
-            pass  # skip any column that causes issues
+            pass
     return df
 
 # -----------------------------
-# Load all datasets via dictionary
+# Load all datasets
 # -----------------------------
-@st.cache_resource
+@st.cache_data
 def load_data():
     files = {
         "master": "Master Stock.xlsx",
@@ -64,74 +59,57 @@ def load_data():
                 datasets[key] = pd.DataFrame(columns=[
                     "District","SM","ASM","Route","Distributor","Outlet",
                     "Brand","Category","Pack Size","ITEMCODE","QTY","NetRevenue",
-                    "VPO","CustomerHierarchy"
+                    "VPO","CustomerHierarchy","IPS","Month","Date"
                 ])
             else:
                 datasets[key] = pd.DataFrame()
 
-    # ── MASTER ──────────────────────────────────────────────────────────
-    m = datasets["master"]
-    for col in ["MFG Date","EXP Date","DOD Date"]:
-        if col in m.columns:
-            m[col] = pd.to_datetime(m[col], errors="coerce", dayfirst=True).dt.date
-    m["Quantity"] = pd.to_numeric(m.get("Quantity", 0), errors="coerce").fillna(0).astype(int)
-    if "Shelflife" in m.columns:
-        m["Shelflife"] = (pd.to_numeric(m["Shelflife"], errors="coerce") * 100).round().astype(int)
-        m["SL Status"] = "Safe"
-        m.loc[m["Shelflife"] < 30, "SL Status"] = "Critical"
-        m.loc[(m["Shelflife"] >= 31) & (m["Shelflife"] <= 90), "SL Status"] = "Warning"
-    datasets["master"] = m
-
-    # ── RISK ─────────────────────────────────────────────────────────────
-    r = datasets["risk"]
-    for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
-        if col in r.columns:
-            r[col] = pd.to_datetime(r[col], errors="coerce", dayfirst=True).dt.date
-    if "Days to BBD" in r.columns:
-        r["Days to BBD"] = pd.to_numeric(r["Days to BBD"], errors="coerce")
-        r["BBD Status"] = "Safe"
-        r.loc[r["Days to BBD"] < 30, "BBD Status"] = "Critical"
-        r.loc[(r["Days to BBD"] >= 31) & (r["Days to BBD"] <= 90), "BBD Status"] = "Warning"
-    for col in r.select_dtypes(include="number").columns:
-        r[col] = pd.to_numeric(r[col], errors="coerce").fillna(0).round().astype(int)
-    datasets["risk"] = r
-
-    # ── DISTRIBUTOR ───────────────────────────────────────────────────────
-    d = datasets["distributor"]
-    for col in ["MFG Date","BBD/Expiry"]:
-        if col in d.columns:
-            d[col] = pd.to_datetime(d[col], errors="coerce", dayfirst=True).dt.date
-    if "EXP Date" in d.columns:
-        d["EXP Date"] = d["EXP Date"].astype(str).str.strip()
-        d["Days to BBD"] = (
-            pd.to_datetime(d["EXP Date"], errors="coerce", dayfirst=True) - pd.to_datetime("today")
-        ).dt.days
-        d["BBD Status"] = "Safe"
-        d.loc[d["Days to BBD"] < 30, "BBD Status"] = "Critical"
-        d.loc[(d["Days to BBD"] >= 31) & (d["Days to BBD"] <= 90), "BBD Status"] = "Warning"
-    datasets["distributor"] = d
-
-    # ── SECONDARY ─────────────────────────────────────────────────────────
+    # ── SECONDARY FIXES ───────────────────────────────
     sec = datasets["secondary"]
+
+    # Normalize headers
+    sec.rename(columns={
+        "Dist":"District",
+        "Sales Manager":"SM",
+        "Area Sales Manager":"ASM",
+        "Route Code":"Route",
+        "DBR Name":"Distributor",
+        "Prod Brand":"Brand",
+        "Prod Category":"Category",
+        "Pack":"Pack Size",
+        "ItemCode":"ITEMCODE",
+        "Qty":"QTY"
+    }, inplace=True)
+
+    # Force object/mixed columns to string
+    for col in sec.select_dtypes(include=["object"]).columns:
+        sec[col] = sec[col].astype(str)
+
+    # Clean numeric columns
     qty_key = "Qty" if "Qty" in sec.columns else "QTY"
     if qty_key in sec.columns:
         sec[qty_key] = pd.to_numeric(sec[qty_key], errors="coerce").fillna(0).astype(int)
     if "NetRevenue" in sec.columns:
         sec["NetRevenue"] = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0).astype(int)
+
     datasets["secondary"] = sec
 
-    # ── MEMORY OPTIMIZATION (runs once, cached) ────────────────────────────
+    # Optimize all datasets
     for key in datasets:
         datasets[key] = optimize_dtypes(datasets[key])
 
     return datasets
 
 datasets = load_data()
-master    = datasets["master"]
-risk      = datasets["risk"]
-distributor = datasets["distributor"]
-secondary = datasets["secondary"]
-
+master, risk, distributor, secondary = (
+    datasets["master"],
+    datasets["risk"],
+    datasets["distributor"],
+    datasets["secondary"]
+)
+# -----------------------------
+# Export helpers
+# -----------------------------
 def export_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -139,22 +117,18 @@ def export_excel(df):
     return output.getvalue()
 
 def lazy_export_section(df, file_name: str, button_key: str):
-    """Only builds the Excel file in memory when the user explicitly asks for it,
-    instead of regenerating it on every rerun of every tab."""
     if st.button(f"Prepare Export ({file_name})", key=f"{button_key}_prepare"):
         st.session_state[f"{button_key}_bytes"] = export_excel(df)
-
     cached_bytes = st.session_state.get(f"{button_key}_bytes")
     if cached_bytes is not None:
-        st.download_button(
-            "Download Excel",
-            cached_bytes,
-            file_name=file_name,
-            key=f"{button_key}_download"
-        )
+        st.download_button("Download Excel", cached_bytes, file_name=file_name, key=f"{button_key}_download")
 
+# -----------------------------
+# UI Tabs
+# -----------------------------
 st.markdown("<h2 style='text-align:center; font-family:Georgia; font-size:32px;'>Coca‑Cola | SLMG Beverages</h2>", unsafe_allow_html=True)
 tab1, tab2, tab3, tab4 = st.tabs(["Stock Overview", "Risk Stock Overview", "Distributor Stock Overview", "Secondary Sales Overview"])
+
 with tab1:
     st.header("Stock Overview")
 
@@ -172,22 +146,18 @@ with tab1:
     with col7: selected_sl = st.multiselect("Shelf Life", ["Critical","Warning","Safe"], key="stock_sl")
     with col8: search_text = st.text_input("Search", key="stock_search")
 
-    # Build mask instead of copying — never mutate the cached master object
-    fmask = pd.Series(True, index=master.index)
-    if selected_sites: fmask &= master["Site"].isin(selected_sites)
-    if selected_warehouses: fmask &= master["Warehouse"].isin(selected_warehouses)
-    if selected_skus: fmask &= master["SKU"].isin(selected_skus)
-    if selected_brands: fmask &= master["Brand"].isin(selected_brands)
-    if selected_categories: fmask &= master["Category"].isin(selected_categories)
-    if selected_pack: fmask &= master["Pack Size"].isin(selected_pack)
-    if selected_sl: fmask &= master["SL Status"].isin(selected_sl)
-    filtered = master[fmask]
+    # Filtering
+    filtered = master.copy()
+    if selected_sites: filtered = filtered[filtered["Site"].isin(selected_sites)]
+    if selected_warehouses: filtered = filtered[filtered["Warehouse"].isin(selected_warehouses)]
+    if selected_skus: filtered = filtered[filtered["SKU"].isin(selected_skus)]
+    if selected_brands: filtered = filtered[filtered["Brand"].isin(selected_brands)]
+    if selected_categories: filtered = filtered[filtered["Category"].isin(selected_categories)]
+    if selected_pack: filtered = filtered[filtered["Pack Size"].isin(selected_pack)]
+    if selected_sl: filtered = filtered[filtered["SL Status"].isin(selected_sl)]
     if search_text:
-        str_cols = filtered.select_dtypes(include=["object","category"]).columns
-        smask = pd.Series(False, index=filtered.index)
-        for col in str_cols:
-            smask |= filtered[col].astype(str).str.contains(search_text, case=False, na=False)
-        filtered = filtered[smask]
+        mask = filtered.astype(str).apply(lambda x: x.str.contains(search_text, case=False, na=False)).any(axis=1)
+        filtered = filtered[mask]
 
     # KPIs
     c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
@@ -227,24 +197,21 @@ with tab2:
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: selected_sites = st.multiselect("Site", sorted(risk["Unit"].dropna().unique()), key="risk_site")
     with col2:
-        wh_opts = risk.loc[risk["Unit"].isin(selected_sites), "Warehouse"] if selected_sites else risk["Warehouse"]
-        selected_wh = st.multiselect("Warehouse", sorted(wh_opts.dropna().unique()), key="risk_wh")
+        wh_source = risk.copy()
+        if selected_sites: wh_source = wh_source[wh_source["Unit"].isin(selected_sites)]
+        selected_wh = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()), key="risk_wh")
     with col3: selected_sku = st.multiselect("SKU", sorted(risk["SKU"].dropna().unique()), key="risk_sku")
     with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="risk_exp")
     with col5: search_risk = st.text_input("Search", key="risk_search")
 
-    rmask = pd.Series(True, index=risk.index)
-    if selected_sites: rmask &= risk["Unit"].isin(selected_sites)
-    if selected_wh: rmask &= risk["Warehouse"].isin(selected_wh)
-    if selected_sku: rmask &= risk["SKU"].isin(selected_sku)
-    if selected_expiry: rmask &= risk["BBD Status"].isin(selected_expiry)
-    rf = risk[rmask]
+    rf = risk.copy()
+    if selected_sites: rf = rf[rf["Unit"].isin(selected_sites)]
+    if selected_wh: rf = rf[rf["Warehouse"].isin(selected_wh)]
+    if selected_sku: rf = rf[rf["SKU"].isin(selected_sku)]
+    if selected_expiry: rf = rf[rf["BBD Status"].isin(selected_expiry)]
     if search_risk:
-        str_cols = rf.select_dtypes(include=["object","category"]).columns
-        smask = pd.Series(False, index=rf.index)
-        for col in str_cols:
-            smask |= rf[col].astype(str).str.contains(search_risk, case=False, na=False)
-        rf = rf[smask]
+        mask = rf.astype(str).apply(lambda x: x.str.contains(search_risk, case=False, na=False)).any(axis=1)
+        rf = rf[mask]
 
     if rf.empty:
         st.warning("No data available for the selected filters.")
@@ -297,6 +264,7 @@ with tab2:
         st.subheader("Detail Table")
         st.dataframe(rf, hide_index=True, width="stretch", height=500)
         lazy_export_section(rf, "Risk_Overview.xlsx", "risk")
+
 with tab3:
     st.header("Distributor Stock Overview")
 
@@ -304,28 +272,25 @@ with tab3:
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()), key="dist_district")
     with col2:
-        dist_wh_opts = distributor.loc[distributor["District"].isin(selected_districts), "Distributor"] if selected_districts else distributor["Distributor"]
-        selected_distributors = st.multiselect("Distributor", sorted(dist_wh_opts.dropna().unique()), key="dist_distributor")
+        dist_source = distributor.copy()
+        if selected_districts: dist_source = dist_source[dist_source["District"].isin(selected_districts)]
+        selected_distributors = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="dist_distributor")
     with col3: selected_sku = st.multiselect("SKU", sorted(distributor["SKU"].dropna().unique()), key="dist_sku")
     with col4: selected_brand = st.multiselect("Brand", sorted(distributor["Brand"].dropna().unique()), key="dist_brand")
     with col5: selected_pack = st.multiselect("Pack Size", sorted(distributor["Pack Size"].dropna().unique()), key="dist_pack")
     with col6: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="dist_exp")
     with col7: search_dist = st.text_input("Search", key="dist_search")
 
-    dmask = pd.Series(True, index=distributor.index)
-    if selected_districts: dmask &= distributor["District"].isin(selected_districts)
-    if selected_distributors: dmask &= distributor["Distributor"].isin(selected_distributors)
-    if selected_sku: dmask &= distributor["SKU"].isin(selected_sku)
-    if selected_brand: dmask &= distributor["Brand"].isin(selected_brand)
-    if selected_pack: dmask &= distributor["Pack Size"].isin(selected_pack)
-    if selected_expiry: dmask &= distributor["BBD Status"].isin(selected_expiry)
-    df = distributor[dmask]
+    df = distributor.copy()
+    if selected_districts: df = df[df["District"].isin(selected_districts)]
+    if selected_distributors: df = df[df["Distributor"].isin(selected_distributors)]
+    if selected_sku: df = df[df["SKU"].isin(selected_sku)]
+    if selected_brand: df = df[df["Brand"].isin(selected_brand)]
+    if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
+    if selected_expiry: df = df[df["BBD Status"].isin(selected_expiry)]
     if search_dist:
-        str_cols = df.select_dtypes(include=["object","category"]).columns
-        smask = pd.Series(False, index=df.index)
-        for col in str_cols:
-            smask |= df[col].astype(str).str.contains(search_dist, case=False, na=False)
-        df = df[smask]
+        mask = df.astype(str).apply(lambda x: x.str.contains(search_dist, case=False, na=False)).any(axis=1)
+        df = df[mask]
 
     if df.empty:
         st.warning("No data available for the selected filters.")
@@ -342,7 +307,7 @@ with tab3:
 
         st.divider()
 
-        # Charts with integer formatting
+        # Charts
         stock_district = df.groupby("District")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
         fig_dist = px.bar(stock_district, x="District", y="Quantity",
                           text=stock_district["Quantity"].astype(int),
@@ -360,7 +325,7 @@ with tab3:
             fig_brand.update_traces(texttemplate='%{text:,}', textposition='outside')
             fig_brand.update_yaxes(tickformat="d")
             st.plotly_chart(fig_brand, width="stretch")
-        with colB:
+                with colB:
             stock_pack = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
             fig_pack = px.bar(stock_pack, x="Pack Size", y="Quantity",
                               text=stock_pack["Quantity"].astype(int),
@@ -399,9 +364,7 @@ with tab4:
 
     brand_filter_col = "Brands" if "Brands" in secondary.columns else "Brand"
 
-    # Row 1: 8 cascading dimension filters
-    # Uses a single boolean mask built incrementally instead of chained .copy()
-    # calls — avoids creating up to 8 intermediate dataframe copies on every rerun.
+    # Cascading filters
     cascade_columns = [
         ("District", "sec_district"),
         ("SM", "sec_sm"),
@@ -414,58 +377,48 @@ with tab4:
     ]
 
     cols = st.columns(8)
-    mask = pd.Series(True, index=secondary.index)
+    source = secondary.copy()
     for (col_name, widget_key), col in zip(cascade_columns, cols):
-        with col:
-            options = sorted(secondary.loc[mask, col_name].dropna().unique())
-            selected_values = st.multiselect(col_name, options, key=widget_key)
-        if selected_values:
-            mask &= secondary[col_name].isin(selected_values)
+        if col_name in source.columns:
+            with col:
+                options = sorted(source[col_name].dropna().unique())
+                selected_values = st.multiselect(col_name, options, key=widget_key)
+            if selected_values:
+                source = source[source[col_name].isin(selected_values)]
 
-    # Row 2: Month filter + Search (compact layout)
+    # Month + Search
     f1, f2, f3 = st.columns([1, 2, 5])
     with f1:
-        month_options = sorted(secondary.loc[mask, "Month"].dropna().unique()) if "Month" in secondary.columns else []
+        month_options = sorted(source["Month"].dropna().unique()) if "Month" in source.columns else []
         selected_months = st.multiselect("Month", month_options, key="sec_month")
     with f2:
         search_sec = st.text_input("Search", key="sec_search")
     with f3:
-        pass  # spacer
+        pass
 
     if selected_months:
-        mask &= secondary["Month"].isin(selected_months)
+        source = source[source["Month"].isin(selected_months)]
 
-    # Apply mask once — single filtered copy instead of 8+ intermediate copies
-    df = secondary[mask].copy()
-
-    # Memory-efficient search: only scan string/category columns, not numerics
+    df = source.copy()
     if search_sec:
-        str_cols = df.select_dtypes(include=["object", "category"]).columns
-        search_mask = pd.Series(False, index=df.index)
-        for col in str_cols:
-            search_mask |= df[col].astype(str).str.contains(search_sec, case=False, na=False)
-        df = df[search_mask]
+        mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
+        df = df[mask]
 
-
-    # ✅ Always show KPIs/charts (zeros if empty)
-    # Handle column name variants between parquet versions
+    # KPIs
     qty_col = "Qty" if "Qty" in df.columns else "QTY"
     outlet_col = "Outlet Code" if "Outlet Code" in df.columns else "Outlet"
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Total Outlets", int(df[outlet_col].nunique()))
-    c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df[qty_col].sum()):,}")
-    c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}")
+    c1.metric("Total Outlets", int(df[outlet_col].nunique()) if outlet_col in df.columns else 0)
+    c2.metric("Total Secondary Sales Volume (QTY)", f"{int(df[qty_col].sum()):,}" if qty_col in df.columns else "0")
+    c3.metric("Total Secondary Sales Revenue", f"{int(df['NetRevenue'].sum()):,}" if "NetRevenue" in df.columns else "0")
 
-    # NSR (Revenue per Unit) — whole number
-    total_qty = df[qty_col].sum()
-    total_rev = df["NetRevenue"].sum()
+    total_qty = df[qty_col].sum() if qty_col in df.columns else 0
+    total_rev = df["NetRevenue"].sum() if "NetRevenue" in df.columns else 0
     nsr = round(total_rev / total_qty) if total_qty > 0 else 0
     c4.metric("NSR (Revenue per Unit)", f"{int(nsr):,}")
 
-    # Avg IPS = average number of unique IPS items per outlet
-    # Uses nunique() on the IPS column grouped by outlet — matches pivot table logic
-    if "IPS" in df.columns and not df.empty:
+    if "IPS" in df.columns and not df.empty and outlet_col in df.columns:
         avg_ips = round(df.groupby(outlet_col)["IPS"].nunique().mean())
     else:
         avg_ips = 0
@@ -475,15 +428,15 @@ with tab4:
 
     # Charts
     brand_col = "Brands" if "Brands" in df.columns else "Brand"
-    colA, colB = st.columns(2)
-    with colA:
+    if "ASM" in df.columns and qty_col in df.columns and "NetRevenue" in df.columns:
         asm_perf = df.groupby("ASM")[[qty_col,"NetRevenue"]].sum().reset_index().sort_values(qty_col, ascending=False)
         asm_perf[qty_col] = asm_perf[qty_col].round().astype(int)
         fig_asm = px.bar(asm_perf, x="ASM", y=qty_col, text=qty_col, title="ASM Performance (Volume)")
         fig_asm.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_asm.update_yaxes(tickformat="d")
         st.plotly_chart(fig_asm, width="stretch")
-    with colB:
+
+    if brand_col in df.columns and qty_col in df.columns:
         brand_perf = df.groupby(brand_col)[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         brand_perf[qty_col] = brand_perf[qty_col].round().astype(int)
         fig_brand = px.bar(brand_perf, x=brand_col, y=qty_col, text=qty_col, title="Brand Performance")
@@ -492,35 +445,29 @@ with tab4:
         st.plotly_chart(fig_brand, width="stretch")
 
     st.divider()
-    colC, colD = st.columns(2)
-    with colC:
+    if "Category" in df.columns and qty_col in df.columns:
         cat_perf = df.groupby("Category")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         cat_perf[qty_col] = cat_perf[qty_col].round().astype(int)
         fig_cat = px.bar(cat_perf, x="Category", y=qty_col, text=qty_col, title="Category Performance")
-        fig_cat.update_traces(texttemplate='%{text:,}', textposition='outside')
-        fig_cat.update_yaxes(tickformat="d")
         st.plotly_chart(fig_cat, width="stretch")
-    with colD:
+
+    if "Pack Size" in df.columns and qty_col in df.columns:
         pack_perf = df.groupby("Pack Size")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         pack_perf[qty_col] = pack_perf[qty_col].round().astype(int)
         fig_pack = px.bar(pack_perf, x="Pack Size", y=qty_col, text=qty_col, title="Pack Size Performance")
-        fig_pack.update_traces(texttemplate='%{text:,}', textposition='outside')
-        fig_pack.update_yaxes(tickformat="d")
         st.plotly_chart(fig_pack, width="stretch")
 
     st.divider()
-    colE, colF = st.columns(2)
-    with colE:
+    if "VPO" in df.columns and qty_col in df.columns:
         vpo_contrib = df.groupby("VPO")[qty_col].sum().reset_index()
         vpo_contrib[qty_col] = vpo_contrib[qty_col].round().astype(int)
         fig_vpo = px.pie(vpo_contrib, names="VPO", values=qty_col, title="VPO Contribution")
-        fig_vpo.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
         st.plotly_chart(fig_vpo, width="stretch")
-    with colF:
+
+    if "CustomerHierarchy" in df.columns and qty_col in df.columns:
         cust_contrib = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
         cust_contrib[qty_col] = cust_contrib[qty_col].round().astype(int)
         fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
-        fig_cust.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
         st.plotly_chart(fig_cust, width="stretch")
 
     st.divider()
