@@ -60,7 +60,6 @@ def load_data():
             df.columns = df.columns.str.strip()
             datasets[key] = df
         except Exception:
-            # If file missing, create empty DataFrame with expected columns
             if key == "secondary":
                 datasets[key] = pd.DataFrame(columns=[
                     "District","SM","ASM","Route","Distributor","Outlet",
@@ -70,82 +69,68 @@ def load_data():
             else:
                 datasets[key] = pd.DataFrame()
 
-    # Clean numeric columns in secondary (handle Qty vs QTY column name variants)
+    # ── MASTER ──────────────────────────────────────────────────────────
+    m = datasets["master"]
+    for col in ["MFG Date","EXP Date","DOD Date"]:
+        if col in m.columns:
+            m[col] = pd.to_datetime(m[col], errors="coerce", dayfirst=True).dt.date
+    m["Quantity"] = pd.to_numeric(m.get("Quantity", 0), errors="coerce").fillna(0).astype(int)
+    if "Shelflife" in m.columns:
+        m["Shelflife"] = (pd.to_numeric(m["Shelflife"], errors="coerce") * 100).round().astype(int)
+        m["SL Status"] = "Safe"
+        m.loc[m["Shelflife"] < 30, "SL Status"] = "Critical"
+        m.loc[(m["Shelflife"] >= 31) & (m["Shelflife"] <= 90), "SL Status"] = "Warning"
+    datasets["master"] = m
+
+    # ── RISK ─────────────────────────────────────────────────────────────
+    r = datasets["risk"]
+    for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
+        if col in r.columns:
+            r[col] = pd.to_datetime(r[col], errors="coerce", dayfirst=True).dt.date
+    if "Days to BBD" in r.columns:
+        r["Days to BBD"] = pd.to_numeric(r["Days to BBD"], errors="coerce")
+        r["BBD Status"] = "Safe"
+        r.loc[r["Days to BBD"] < 30, "BBD Status"] = "Critical"
+        r.loc[(r["Days to BBD"] >= 31) & (r["Days to BBD"] <= 90), "BBD Status"] = "Warning"
+    for col in r.select_dtypes(include="number").columns:
+        r[col] = pd.to_numeric(r[col], errors="coerce").fillna(0).round().astype(int)
+    datasets["risk"] = r
+
+    # ── DISTRIBUTOR ───────────────────────────────────────────────────────
+    d = datasets["distributor"]
+    for col in ["MFG Date","BBD/Expiry"]:
+        if col in d.columns:
+            d[col] = pd.to_datetime(d[col], errors="coerce", dayfirst=True).dt.date
+    if "EXP Date" in d.columns:
+        d["EXP Date"] = d["EXP Date"].astype(str).str.strip()
+        d["Days to BBD"] = (
+            pd.to_datetime(d["EXP Date"], errors="coerce", dayfirst=True) - pd.to_datetime("today")
+        ).dt.days
+        d["BBD Status"] = "Safe"
+        d.loc[d["Days to BBD"] < 30, "BBD Status"] = "Critical"
+        d.loc[(d["Days to BBD"] >= 31) & (d["Days to BBD"] <= 90), "BBD Status"] = "Warning"
+    datasets["distributor"] = d
+
+    # ── SECONDARY ─────────────────────────────────────────────────────────
     sec = datasets["secondary"]
     qty_key = "Qty" if "Qty" in sec.columns else "QTY"
     if qty_key in sec.columns:
         sec[qty_key] = pd.to_numeric(sec[qty_key], errors="coerce").fillna(0).astype(int)
     if "NetRevenue" in sec.columns:
         sec["NetRevenue"] = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0).astype(int)
+    datasets["secondary"] = sec
 
-    # Apply memory optimization to every dataset (runs once, cached)
+    # ── MEMORY OPTIMIZATION (runs once, cached) ────────────────────────────
     for key in datasets:
         datasets[key] = optimize_dtypes(datasets[key])
 
     return datasets
 
 datasets = load_data()
-master, risk, distributor, secondary = (
-    datasets["master"],
-    datasets["risk"],
-    datasets["distributor"],
-    datasets["secondary"]
-)
-
-# -----------------------------
-# Date cleanup
-# -----------------------------
-for col in ["MFG Date","EXP Date","DOD Date"]:
-    if col in master.columns:
-        master[col] = pd.to_datetime(master[col], errors="coerce", dayfirst=True).dt.date
-
-for col in ["MFG Date","EXP Date","BBD/Expiry","DOD Date"]:
-    if col in risk.columns:
-        risk[col] = pd.to_datetime(risk[col], errors="coerce", dayfirst=True).dt.date
-
-# Create BBD Status for risk from "Days to BBD" (this was missing, which
-# caused a KeyError whenever the Expiry Status filter was used)
-if "Days to BBD" in risk.columns:
-    risk["Days to BBD"] = pd.to_numeric(risk["Days to BBD"], errors="coerce")
-    risk["BBD Status"] = "Safe"
-    risk.loc[risk["Days to BBD"] < 30, "BBD Status"] = "Critical"
-    risk.loc[(risk["Days to BBD"] >= 31) & (risk["Days to BBD"] <= 90), "BBD Status"] = "Warning"
-
-# Round numeric columns to whole numbers (Quantity, Consumed inventory,
-# Days to DOD/LBD/SBD/BBD, etc. come in from Excel with long decimals).
-# Uses include="number" instead of explicit int64/float64 dtype names,
-# since optimize_dtypes() downcasts to float32/int32 etc. earlier, and
-# those wouldn't match a literal int64/float64 check.
-for col in risk.select_dtypes(include="number").columns:
-    risk[col] = pd.to_numeric(risk[col], errors="coerce").fillna(0).round().astype(int)
-
-for col in ["MFG Date","BBD/Expiry"]:
-    if col in distributor.columns:
-        distributor[col] = pd.to_datetime(distributor[col], errors="coerce", dayfirst=True).dt.date
-
-# 👇 Handle EXP Date separately (outside the loop)
-if "EXP Date" in distributor.columns:
-    # Keep raw Excel values visible
-    distributor["EXP Date"] = distributor["EXP Date"].astype(str).str.strip()
-
-    # Calculate Days to BBD safely
-    distributor["Days to BBD"] = (
-        pd.to_datetime(distributor["EXP Date"], errors="coerce", dayfirst=True) - pd.to_datetime("today")
-    ).dt.days
-
-    # Create BBD Status from Days to BBD
-    distributor["BBD Status"] = "Safe"
-    distributor.loc[distributor["Days to BBD"] < 30, "BBD Status"] = "Critical"
-    distributor.loc[(distributor["Days to BBD"] >= 31) & (distributor["Days to BBD"] <= 90), "BBD Status"] = "Warning"
-
-st.markdown("<style>.block-container {padding-top: 1.5rem;}</style>", unsafe_allow_html=True)
-
-master["Quantity"] = pd.to_numeric(master["Quantity"], errors="coerce").fillna(0).astype(int)
-if "Shelflife" in master.columns:
-    master["Shelflife"] = (pd.to_numeric(master["Shelflife"], errors="coerce") * 100).round().astype(int)
-    master["SL Status"] = "Safe"
-    master.loc[master["Shelflife"] < 30, "SL Status"] = "Critical"
-    master.loc[(master["Shelflife"] >= 31) & (master["Shelflife"] <= 90), "SL Status"] = "Warning"
+master    = datasets["master"]
+risk      = datasets["risk"]
+distributor = datasets["distributor"]
+secondary = datasets["secondary"]
 
 def export_excel(df):
     output = BytesIO()
@@ -429,23 +414,18 @@ with tab4:
         if selected_values:
             mask &= secondary[col_name].isin(selected_values)
 
-    # Row 2: Month, Date filters + Search (compact layout)
-    f1, f2, f3, f4 = st.columns([1, 2, 2, 3])
+    # Row 2: Month filter + Search (compact layout)
+    f1, f2, f3 = st.columns([1, 2, 5])
     with f1:
         month_options = sorted(secondary.loc[mask, "Month"].dropna().unique()) if "Month" in secondary.columns else []
         selected_months = st.multiselect("Month", month_options, key="sec_month")
     with f2:
-        date_options = sorted(secondary.loc[mask, "Date"].dropna().unique()) if "Date" in secondary.columns else []
-        selected_dates = st.multiselect("Date", date_options, key="sec_date")
-    with f3:
         search_sec = st.text_input("Search", key="sec_search")
-    with f4:
-        pass  # intentional spacer to keep search compact
+    with f3:
+        pass  # spacer
 
     if selected_months:
         mask &= secondary["Month"].isin(selected_months)
-    if selected_dates:
-        mask &= secondary["Date"].isin(selected_dates)
 
     # Apply mask once — single filtered copy instead of 8+ intermediate copies
     df = secondary[mask].copy()
