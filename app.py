@@ -45,7 +45,7 @@ def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------
 # Load all datasets via dictionary
 # -----------------------------
-@st.cache_data
+@st.cache_resource
 def load_data():
     files = {
         "master": "Master Stock.xlsx",
@@ -172,18 +172,22 @@ with tab1:
     with col7: selected_sl = st.multiselect("Shelf Life", ["Critical","Warning","Safe"], key="stock_sl")
     with col8: search_text = st.text_input("Search", key="stock_search")
 
-    # ✅ Initialize filtered before use
-    filtered = master.copy()
-    if selected_sites: filtered = filtered[filtered["Site"].isin(selected_sites)]
-    if selected_warehouses: filtered = filtered[filtered["Warehouse"].isin(selected_warehouses)]
-    if selected_skus: filtered = filtered[filtered["SKU"].isin(selected_skus)]
-    if selected_brands: filtered = filtered[filtered["Brand"].isin(selected_brands)]
-    if selected_categories: filtered = filtered[filtered["Category"].isin(selected_categories)]
-    if selected_pack: filtered = filtered[filtered["Pack Size"].isin(selected_pack)]
-    if selected_sl: filtered = filtered[filtered["SL Status"].isin(selected_sl)]
+    # Build mask instead of copying — never mutate the cached master object
+    fmask = pd.Series(True, index=master.index)
+    if selected_sites: fmask &= master["Site"].isin(selected_sites)
+    if selected_warehouses: fmask &= master["Warehouse"].isin(selected_warehouses)
+    if selected_skus: fmask &= master["SKU"].isin(selected_skus)
+    if selected_brands: fmask &= master["Brand"].isin(selected_brands)
+    if selected_categories: fmask &= master["Category"].isin(selected_categories)
+    if selected_pack: fmask &= master["Pack Size"].isin(selected_pack)
+    if selected_sl: fmask &= master["SL Status"].isin(selected_sl)
+    filtered = master[fmask]
     if search_text:
-        mask = filtered.astype(str).apply(lambda x: x.str.contains(search_text, case=False, na=False)).any(axis=1)
-        filtered = filtered[mask]
+        str_cols = filtered.select_dtypes(include=["object","category"]).columns
+        smask = pd.Series(False, index=filtered.index)
+        for col in str_cols:
+            smask |= filtered[col].astype(str).str.contains(search_text, case=False, na=False)
+        filtered = filtered[smask]
 
     # KPIs
     c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
@@ -223,22 +227,24 @@ with tab2:
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: selected_sites = st.multiselect("Site", sorted(risk["Unit"].dropna().unique()), key="risk_site")
     with col2:
-        wh_source = risk.copy()
-        if selected_sites: wh_source = wh_source[wh_source["Unit"].isin(selected_sites)]
-        selected_wh = st.multiselect("Warehouse", sorted(wh_source["Warehouse"].dropna().unique()), key="risk_wh")
+        wh_opts = risk.loc[risk["Unit"].isin(selected_sites), "Warehouse"] if selected_sites else risk["Warehouse"]
+        selected_wh = st.multiselect("Warehouse", sorted(wh_opts.dropna().unique()), key="risk_wh")
     with col3: selected_sku = st.multiselect("SKU", sorted(risk["SKU"].dropna().unique()), key="risk_sku")
     with col4: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="risk_exp")
     with col5: search_risk = st.text_input("Search", key="risk_search")
 
-    # ✅ Initialize rf before use
-    rf = risk.copy()
-    if selected_sites: rf = rf[rf["Unit"].isin(selected_sites)]
-    if selected_wh: rf = rf[rf["Warehouse"].isin(selected_wh)]
-    if selected_sku: rf = rf[rf["SKU"].isin(selected_sku)]
-    if selected_expiry: rf = rf[rf["BBD Status"].isin(selected_expiry)]
+    rmask = pd.Series(True, index=risk.index)
+    if selected_sites: rmask &= risk["Unit"].isin(selected_sites)
+    if selected_wh: rmask &= risk["Warehouse"].isin(selected_wh)
+    if selected_sku: rmask &= risk["SKU"].isin(selected_sku)
+    if selected_expiry: rmask &= risk["BBD Status"].isin(selected_expiry)
+    rf = risk[rmask]
     if search_risk:
-        mask = rf.astype(str).apply(lambda x: x.str.contains(search_risk, case=False, na=False)).any(axis=1)
-        rf = rf[mask]
+        str_cols = rf.select_dtypes(include=["object","category"]).columns
+        smask = pd.Series(False, index=rf.index)
+        for col in str_cols:
+            smask |= rf[col].astype(str).str.contains(search_risk, case=False, na=False)
+        rf = rf[smask]
 
     if rf.empty:
         st.warning("No data available for the selected filters.")
@@ -298,26 +304,28 @@ with tab3:
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     with col1: selected_districts = st.multiselect("District", sorted(distributor["District"].dropna().unique()), key="dist_district")
     with col2:
-        dist_source = distributor.copy()
-        if selected_districts: dist_source = dist_source[dist_source["District"].isin(selected_districts)]
-        selected_distributors = st.multiselect("Distributor", sorted(dist_source["Distributor"].dropna().unique()), key="dist_distributor")
+        dist_wh_opts = distributor.loc[distributor["District"].isin(selected_districts), "Distributor"] if selected_districts else distributor["Distributor"]
+        selected_distributors = st.multiselect("Distributor", sorted(dist_wh_opts.dropna().unique()), key="dist_distributor")
     with col3: selected_sku = st.multiselect("SKU", sorted(distributor["SKU"].dropna().unique()), key="dist_sku")
     with col4: selected_brand = st.multiselect("Brand", sorted(distributor["Brand"].dropna().unique()), key="dist_brand")
     with col5: selected_pack = st.multiselect("Pack Size", sorted(distributor["Pack Size"].dropna().unique()), key="dist_pack")
     with col6: selected_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="dist_exp")
     with col7: search_dist = st.text_input("Search", key="dist_search")
 
-    # ✅ Initialize df before use
-    df = distributor.copy()
-    if selected_districts: df = df[df["District"].isin(selected_districts)]
-    if selected_distributors: df = df[df["Distributor"].isin(selected_distributors)]
-    if selected_sku: df = df[df["SKU"].isin(selected_sku)]
-    if selected_brand: df = df[df["Brand"].isin(selected_brand)]
-    if selected_pack: df = df[df["Pack Size"].isin(selected_pack)]
-    if selected_expiry: df = df[df["BBD Status"].isin(selected_expiry)]
+    dmask = pd.Series(True, index=distributor.index)
+    if selected_districts: dmask &= distributor["District"].isin(selected_districts)
+    if selected_distributors: dmask &= distributor["Distributor"].isin(selected_distributors)
+    if selected_sku: dmask &= distributor["SKU"].isin(selected_sku)
+    if selected_brand: dmask &= distributor["Brand"].isin(selected_brand)
+    if selected_pack: dmask &= distributor["Pack Size"].isin(selected_pack)
+    if selected_expiry: dmask &= distributor["BBD Status"].isin(selected_expiry)
+    df = distributor[dmask]
     if search_dist:
-        mask = df.astype(str).apply(lambda x: x.str.contains(search_dist, case=False, na=False)).any(axis=1)
-        df = df[mask]
+        str_cols = df.select_dtypes(include=["object","category"]).columns
+        smask = pd.Series(False, index=df.index)
+        for col in str_cols:
+            smask |= df[col].astype(str).str.contains(search_dist, case=False, na=False)
+        df = df[smask]
 
     if df.empty:
         st.warning("No data available for the selected filters.")
