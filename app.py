@@ -407,6 +407,8 @@ with tab4:
     brand_filter_col = "Brands" if "Brands" in secondary.columns else "Brand"
 
     # Row 1: 8 cascading dimension filters
+    # Uses a single boolean mask built incrementally instead of chained .copy()
+    # calls — avoids creating up to 8 intermediate dataframe copies on every rerun.
     cascade_columns = [
         ("District", "sec_district"),
         ("SM", "sec_sm"),
@@ -419,21 +421,21 @@ with tab4:
     ]
 
     cols = st.columns(8)
-    source = secondary.copy()
+    mask = pd.Series(True, index=secondary.index)
     for (col_name, widget_key), col in zip(cascade_columns, cols):
         with col:
-            options = sorted(source[col_name].dropna().unique())
+            options = sorted(secondary.loc[mask, col_name].dropna().unique())
             selected_values = st.multiselect(col_name, options, key=widget_key)
         if selected_values:
-            source = source[source[col_name].isin(selected_values)]
+            mask &= secondary[col_name].isin(selected_values)
 
     # Row 2: Month, Date filters + Search (compact layout)
     f1, f2, f3, f4 = st.columns([1, 2, 2, 3])
     with f1:
-        month_options = sorted(source["Month"].dropna().unique()) if "Month" in source.columns else []
+        month_options = sorted(secondary.loc[mask, "Month"].dropna().unique()) if "Month" in secondary.columns else []
         selected_months = st.multiselect("Month", month_options, key="sec_month")
     with f2:
-        date_options = sorted(source["Date"].dropna().unique()) if "Date" in source.columns else []
+        date_options = sorted(secondary.loc[mask, "Date"].dropna().unique()) if "Date" in secondary.columns else []
         selected_dates = st.multiselect("Date", date_options, key="sec_date")
     with f3:
         search_sec = st.text_input("Search", key="sec_search")
@@ -441,14 +443,21 @@ with tab4:
         pass  # intentional spacer to keep search compact
 
     if selected_months:
-        source = source[source["Month"].isin(selected_months)]
+        mask &= secondary["Month"].isin(selected_months)
     if selected_dates:
-        source = source[source["Date"].isin(selected_dates)]
+        mask &= secondary["Date"].isin(selected_dates)
 
-    df = source.copy()
+    # Apply mask once — single filtered copy instead of 8+ intermediate copies
+    df = secondary[mask].copy()
+
+    # Memory-efficient search: only scan string/category columns, not numerics
     if search_sec:
-        mask = df.astype(str).apply(lambda x: x.str.contains(search_sec, case=False, na=False)).any(axis=1)
-        df = df[mask]
+        str_cols = df.select_dtypes(include=["object", "category"]).columns
+        search_mask = pd.Series(False, index=df.index)
+        for col in str_cols:
+            search_mask |= df[col].astype(str).str.contains(search_sec, case=False, na=False)
+        df = df[search_mask]
+
 
     # ✅ Always show KPIs/charts (zeros if empty)
     # Handle column name variants between parquet versions
