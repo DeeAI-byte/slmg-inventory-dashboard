@@ -356,7 +356,7 @@ with tab3:
                           title="Stock by District")
         fig_dist.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_dist.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_dist, use_container_width=True)
+        st.plotly_chart(fig_dist, width="stretch")
 
         colA, colB = st.columns(2)
         with colA:
@@ -366,7 +366,7 @@ with tab3:
                                title="Stock by Brand")
             fig_brand.update_traces(texttemplate='%{text:,}', textposition='outside')
             fig_brand.update_yaxes(tickformat="d")
-            st.plotly_chart(fig_brand, use_container_width=True)
+            st.plotly_chart(fig_brand, width="stretch")
         with colB:
             stock_pack = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
             fig_pack = px.bar(stock_pack, x="Pack Size", y="Quantity",
@@ -374,7 +374,7 @@ with tab3:
                               title="Stock by Pack Size")
             fig_pack.update_traces(texttemplate='%{text:,}', textposition='outside')
             fig_pack.update_yaxes(tickformat="d")
-            st.plotly_chart(fig_pack, use_container_width=True)
+            st.plotly_chart(fig_pack, width="stretch")
 
         st.divider()
         st.subheader("District Level Breakdown")
@@ -393,13 +393,13 @@ with tab3:
                     "Safe BBD": int(sub[sub["Days to BBD"] > 90]["Quantity"].sum())
                 })
         breakdown_df = pd.DataFrame(breakdown)
-        st.dataframe(breakdown_df, hide_index=True, use_container_width=True)
+        st.dataframe(breakdown_df, hide_index=True, width="stretch")
 
         st.divider()
         st.subheader("Detail Table")
         for col in df.select_dtypes(include=["int64","float64"]).columns:
             df[col] = df[col].fillna(0).astype(int)  # safer cast
-        st.dataframe(df, hide_index=True, use_container_width=True, height=500)
+        st.dataframe(df, hide_index=True, width="stretch", height=500)
         lazy_export_section(df, "Distributor_Overview.xlsx", "dist")
 with tab4:
     st.header("Secondary Sales Overview")
@@ -485,14 +485,14 @@ with tab4:
         fig_asm = px.bar(asm_perf, x="ASM", y=qty_col, text=qty_col, title="ASM Performance (Volume)")
         fig_asm.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_asm.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_asm, use_container_width=True)
+        st.plotly_chart(fig_asm, width="stretch")
     with colB:
         brand_perf = df.groupby(brand_col)[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         brand_perf[qty_col] = brand_perf[qty_col].round().astype(int)
         fig_brand = px.bar(brand_perf, x=brand_col, y=qty_col, text=qty_col, title="Brand Performance")
         fig_brand.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_brand.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_brand, use_container_width=True)
+        st.plotly_chart(fig_brand, width="stretch")
 
     st.divider()
     colC, colD = st.columns(2)
@@ -502,14 +502,14 @@ with tab4:
         fig_cat = px.bar(cat_perf, x="Category", y=qty_col, text=qty_col, title="Category Performance")
         fig_cat.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_cat.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_cat, use_container_width=True)
+        st.plotly_chart(fig_cat, width="stretch")
     with colD:
         pack_perf = df.groupby("Pack Size")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         pack_perf[qty_col] = pack_perf[qty_col].round().astype(int)
         fig_pack = px.bar(pack_perf, x="Pack Size", y=qty_col, text=qty_col, title="Pack Size Performance")
         fig_pack.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_pack.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_pack, use_container_width=True)
+        st.plotly_chart(fig_pack, width="stretch")
 
     st.divider()
     colE, colF = st.columns(2)
@@ -518,15 +518,15 @@ with tab4:
         vpo_contrib[qty_col] = vpo_contrib[qty_col].round().astype(int)
         fig_vpo = px.pie(vpo_contrib, names="VPO", values=qty_col, title="VPO Contribution")
         fig_vpo.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
-        st.plotly_chart(fig_vpo, use_container_width=True)
+        st.plotly_chart(fig_vpo, width="stretch")
     with colF:
         cust_contrib = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
         cust_contrib[qty_col] = cust_contrib[qty_col].round().astype(int)
         fig_cust = px.pie(cust_contrib, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
         fig_cust.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
-        st.plotly_chart(fig_cust, use_container_width=True)
+        st.plotly_chart(fig_cust, width="stretch")
 
     st.divider()
     st.subheader("Detail Table")
-    st.dataframe(df.head(1000), hide_index=True, use_container_width=True, height=500)
+    st.dataframe(df.head(1000), hide_index=True, width="stretch", height=500)
     lazy_export_section(df, "Secondary_Sales_Overview.xlsx", "sec")
