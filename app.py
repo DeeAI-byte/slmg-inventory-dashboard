@@ -10,7 +10,7 @@ st.set_page_config(page_title="SLMG Inventory Hub", page_icon="banner_bg.png", l
 # -----------------------------
 def load_file(file_path: str):
     if file_path.endswith(".parquet"):
-        return pd.read_parquet(file_path)
+        return pd.read_parquet(file_path, dtype_backend="numpy_nullable")
     elif file_path.endswith(".csv"):
         return pd.read_csv(file_path)
     else:
