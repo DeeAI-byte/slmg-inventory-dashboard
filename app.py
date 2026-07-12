@@ -10,7 +10,7 @@ st.set_page_config(page_title="SLMG Inventory Hub", page_icon="banner_bg.png", l
 # -----------------------------
 def load_file(file_path: str):
     if file_path.endswith(".parquet"):
-        return pd.read_parquet(file_path, dtype_backend="numpy_nullable")
+        return pd.read_parquet(file_path)
     elif file_path.endswith(".csv"):
         return pd.read_csv(file_path)
     else:
@@ -78,7 +78,8 @@ def load_data():
         for col in ["MFG Date", "EXP Date", "DOD Date"]:
             if col in m.columns:
                 m[col] = pd.to_datetime(m[col], errors="coerce", dayfirst=True).dt.date
-        m["Quantity"] = pd.to_numeric(m.get("Quantity", 0), errors="coerce").fillna(0).astype(int)
+        if "Quantity" in m.columns:
+            m["Quantity"] = pd.to_numeric(m["Quantity"], errors="coerce").fillna(0).astype(int)
         if "Shelflife" in m.columns:
             m["Shelflife"] = (pd.to_numeric(m["Shelflife"], errors="coerce") * 100).round().astype(int)
             m["SL Status"] = "Safe"
