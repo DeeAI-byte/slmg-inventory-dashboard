@@ -190,18 +190,18 @@ with tab1:
     fig = px.bar(stock_site, x="Site", y="Quantity", text="Quantity", title="Stock By Site")
     fig.update_traces(texttemplate='%{text:,}', textposition='outside')
     fig.update_yaxes(tickformat="d")
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
     left, right = st.columns(2)
     with left:
         st.subheader("Top 5 SKUs By Inventory")
-        st.dataframe(filtered.groupby("SKU")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False).head(5), hide_index=True, width="stretch")
+        st.dataframe(filtered.groupby("SKU")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False).head(5), hide_index=True, use_container_width=True)
     with right:
         st.subheader("Top 5 SKUs — Lowest Shelf Life %")
-        st.dataframe(filtered[["SKU","Shelflife","Quantity"]].sort_values("Shelflife").head(5), hide_index=True, width="stretch")
+        st.dataframe(filtered[["SKU","Shelflife","Quantity"]].sort_values("Shelflife").head(5), hide_index=True, use_container_width=True)
 
     st.subheader("Detail Table")
-    st.dataframe(filtered, hide_index=True, width="stretch", height=500)
+    st.dataframe(filtered, hide_index=True, use_container_width=True, height=500)
     lazy_export_section(filtered, "Stock_Overview.xlsx", "stock")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -246,11 +246,11 @@ with tab2:
         left, right = st.columns(2)
         with left:
             st.subheader("Top 5 At-Risk BBD SKUs")
-            st.dataframe(rf[["SKU","Quantity","Days to BBD"]].sort_values("Days to BBD").head(5), hide_index=True, width="stretch")
+            st.dataframe(rf[["SKU","Quantity","Days to BBD"]].sort_values("Days to BBD").head(5), hide_index=True, use_container_width=True)
         with right:
             st.subheader("Top 5 At-Risk SBD SKUs")
             if "Days to SBD" in rf.columns:
-                st.dataframe(rf[["SKU","Quantity","Days to SBD"]].sort_values("Days to SBD").head(5), hide_index=True, width="stretch")
+                st.dataframe(rf[["SKU","Quantity","Days to SBD"]].sort_values("Days to SBD").head(5), hide_index=True, use_container_width=True)
 
         st.divider()
         breakdown = []
@@ -268,11 +268,11 @@ with tab2:
                 row["CONSUMED INV"] = int(temp["Consumed inventory"].sum())
             breakdown.append(row)
         st.subheader("Plant Level Breakdown")
-        st.dataframe(pd.DataFrame(breakdown), hide_index=True, width="stretch")
+        st.dataframe(pd.DataFrame(breakdown), hide_index=True, use_container_width=True)
 
         st.divider()
         st.subheader("Detail Table")
-        st.dataframe(rf, hide_index=True, width="stretch", height=500)
+        st.dataframe(rf, hide_index=True, use_container_width=True, height=500)
         lazy_export_section(rf, "Risk_Overview.xlsx", "risk")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -323,7 +323,7 @@ with tab3:
         fig_dist = px.bar(stock_district, x="District", y="Quantity", text=stock_district["Quantity"].astype(int), title="Stock by District")
         fig_dist.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_dist.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_dist, width="stretch")
+        st.plotly_chart(fig_dist, use_container_width=True)
 
         colA, colB = st.columns(2)
         with colA:
@@ -331,13 +331,13 @@ with tab3:
             fig_b = px.bar(sb, x="Brand", y="Quantity", text=sb["Quantity"].astype(int), title="Stock by Brand")
             fig_b.update_traces(texttemplate='%{text:,}', textposition='outside')
             fig_b.update_yaxes(tickformat="d")
-            st.plotly_chart(fig_b, width="stretch")
+            st.plotly_chart(fig_b, use_container_width=True)
         with colB:
             sp = df.groupby("Pack Size")["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
             fig_p = px.bar(sp, x="Pack Size", y="Quantity", text=sp["Quantity"].astype(int), title="Stock by Pack Size")
             fig_p.update_traces(texttemplate='%{text:,}', textposition='outside')
             fig_p.update_yaxes(tickformat="d")
-            st.plotly_chart(fig_p, width="stretch")
+            st.plotly_chart(fig_p, use_container_width=True)
 
         st.divider()
         st.subheader("District Level Breakdown")
@@ -352,11 +352,11 @@ with tab3:
                     "Critical BBD":int(sub[sub["Days to BBD"] < 30]["Quantity"].sum()),
                     "Warning BBD": int(sub[(sub["Days to BBD"] >= 31) & (sub["Days to BBD"] <= 90)]["Quantity"].sum()),
                     "Safe BBD":    int(sub[sub["Days to BBD"] > 90]["Quantity"].sum())})
-        st.dataframe(pd.DataFrame(breakdown), hide_index=True, width="stretch")
+        st.dataframe(pd.DataFrame(breakdown), hide_index=True, use_container_width=True)
 
         st.divider()
         st.subheader("Detail Table")
-        st.dataframe(df, hide_index=True, width="stretch", height=500)
+        st.dataframe(df, hide_index=True, use_container_width=True, height=500)
         lazy_export_section(df, "Distributor_Overview.xlsx", "dist")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -421,14 +421,14 @@ with tab4:
         fig_a = px.bar(ap, x="ASM", y=qty_col, text=qty_col, title="ASM Performance (Volume)")
         fig_a.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_a.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_a, width="stretch")
+        st.plotly_chart(fig_a, use_container_width=True)
     with colB:
         bp = df.groupby(brand_col)[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         bp[qty_col] = bp[qty_col].round().astype(int)
         fig_b = px.bar(bp, x=brand_col, y=qty_col, text=qty_col, title="Brand Performance")
         fig_b.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_b.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_b, width="stretch")
+        st.plotly_chart(fig_b, use_container_width=True)
 
     st.divider()
     colC, colD = st.columns(2)
@@ -438,14 +438,14 @@ with tab4:
         fig_c = px.bar(cp, x="Category", y=qty_col, text=qty_col, title="Category Performance")
         fig_c.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_c.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_c, width="stretch")
+        st.plotly_chart(fig_c, use_container_width=True)
     with colD:
         pp = df.groupby("Pack Size")[qty_col].sum().reset_index().sort_values(qty_col, ascending=False)
         pp[qty_col] = pp[qty_col].round().astype(int)
         fig_p = px.bar(pp, x="Pack Size", y=qty_col, text=qty_col, title="Pack Size Performance")
         fig_p.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig_p.update_yaxes(tickformat="d")
-        st.plotly_chart(fig_p, width="stretch")
+        st.plotly_chart(fig_p, use_container_width=True)
 
     st.divider()
     colE, colF = st.columns(2)
@@ -454,15 +454,15 @@ with tab4:
         vp[qty_col] = vp[qty_col].round().astype(int)
         fig_v = px.pie(vp, names="VPO", values=qty_col, title="VPO Contribution")
         fig_v.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
-        st.plotly_chart(fig_v, width="stretch")
+        st.plotly_chart(fig_v, use_container_width=True)
     with colF:
         chp = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
         chp[qty_col] = chp[qty_col].round().astype(int)
         fig_ch = px.pie(chp, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
         fig_ch.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
-        st.plotly_chart(fig_ch, width="stretch")
+        st.plotly_chart(fig_ch, use_container_width=True)
 
     st.divider()
     st.subheader("Detail Table")
-    st.dataframe(df.head(1000), hide_index=True, width="stretch", height=500)
+    st.dataframe(df.head(1000), hide_index=True, use_container_width=True, height=500)
     lazy_export_section(df, "Secondary_Sales_Overview.xlsx", "sec")
