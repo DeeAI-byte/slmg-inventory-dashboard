@@ -388,18 +388,7 @@ with tab4:
         if selected:
             mask &= secondary[col_name].isin(selected)
 
-    # Row 2: Month + Search
-    f1, f2, f3 = st.columns([1, 2, 5])
-    with f1:
-        month_opts = sorted(secondary.loc[mask, "Month"].dropna().unique()) if "Month" in secondary.columns else []
-        sel_months = st.multiselect("Month", month_opts, key="sec_month")
-    with f2:
-        search_sec = st.text_input("Search", key="sec_search")
-    with f3:
-        pass
-
-    if sel_months:
-        mask &= secondary["Month"].isin(sel_months)
+    search_sec = st.text_input("Search", key="sec_search")
 
     # Single filtered copy — applied once
     df = secondary[mask].reset_index(drop=True)
@@ -463,13 +452,13 @@ with tab4:
         vp = df.groupby("VPO")[qty_col].sum().reset_index()
         vp[qty_col] = vp[qty_col].round().astype(int)
         fig_v = px.pie(vp, names="VPO", values=qty_col, title="VPO Contribution")
-        fig_v.update_traces(textinfo='percent+label', texttemplate='%{label}<br>%{percent:.1%}')
+        fig_v.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
         st.plotly_chart(fig_v, width="stretch")
     with colF:
         chp = df.groupby("CustomerHierarchy")[qty_col].sum().reset_index()
         chp[qty_col] = chp[qty_col].round().astype(int)
         fig_ch = px.pie(chp, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
-        fig_ch.update_traces(textinfo='percent+label', texttemplate='%{label}<br>%{percent:.1%}')
+        fig_ch.update_traces(texttemplate='%{percent:.1%}', textinfo='percent+label')
         st.plotly_chart(fig_ch, width="stretch")
 
     st.divider()
