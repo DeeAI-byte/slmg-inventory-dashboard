@@ -222,9 +222,9 @@ st.markdown("<h2 style='text-align:center;font-family:Georgia;font-size:32px;'>C
 
 tab1, tab2, tab3, tab4 = st.tabs(["Stock Overview", "Risk Stock Overview", "Distributor Stock Overview", "Secondary Sales Overview"])
 
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 # TAB 1 — Stock Overview
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 with tab1:
     st.header("Stock Overview")
 
@@ -303,9 +303,9 @@ with tab1:
     st.dataframe(filtered, hide_index=True, use_container_width=True, height=500)
     lazy_export_section(filtered, "Stock_Overview.xlsx", "stock")
 
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 # TAB 2 — Risk Stock Overview
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 with tab2:
     st.header("Risk Stock Overview")
 
@@ -392,9 +392,9 @@ with tab2:
         st.dataframe(rf, hide_index=True, use_container_width=True, height=500)
         lazy_export_section(rf, "Risk_Overview.xlsx", "risk")
 
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 # TAB 3 — Distributor Stock Overview
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 with tab3:
     st.header("Distributor Stock Overview")
 
@@ -481,9 +481,9 @@ with tab3:
         st.dataframe(df, hide_index=True, use_container_width=True, height=500)
         lazy_export_section(df, "Distributor_Overview.xlsx", "dist")
 
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 # TAB 4 — Secondary Sales Overview
-# ═══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════==
 with tab4:
     st.header("Secondary Sales Overview")
 
@@ -513,7 +513,7 @@ with tab4:
         if selected:
             mask &= secondary[col_name].isin(selected)
 
-    # Month filter (month name only, no year). Detect a date-like column automatically.
+    # Month filter (month name only) and Search on same line. Month width equals one filter; search takes remaining space.
     date_candidates = [c for c in secondary.columns if any(k in c.lower() for k in ("date","invoice","trans","doc","created"))]
     month_selected = None
     if date_candidates:
@@ -527,15 +527,20 @@ with tab4:
             month_options = [m for m in month_order if m in month_options_raw]
         except Exception:
             month_options = []
+    else:
+        month_options = []
+
+    # Layout: one small column for Month (same width as other filters) and a large column for Search
+    col_month, col_search = st.columns([1,7])
+    with col_month:
         if month_options:
             month_selected = st.multiselect("Month", month_options, key="sec_month")
-            if month_selected:
+            if month_selected and date_candidates:
                 # Apply month filter to mask (month name only)
                 month_ser_full = pd.to_datetime(secondary[date_col], errors='coerce').dt.month_name()
                 mask &= month_ser_full.isin(month_selected)
-
-    # Full-width Search bar on its own horizontal line
-    search_sec = st.text_input("Search", key="sec_search")
+    with col_search:
+        search_sec = st.text_input("Search", key="sec_search")
 
     # Apply mask — avoid an unnecessary reset_index copy
     df = secondary.loc[mask]
