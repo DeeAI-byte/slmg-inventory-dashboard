@@ -4,6 +4,7 @@ import plotly.express as px
 # from io import BytesIO  # removed: unused import to reduce memory footprint
 import tempfile
 import os
+import calendar
 
 st.set_page_config(page_title="SLMG Inventory Hub", page_icon="banner_bg.png", layout="wide")
 
@@ -482,7 +483,7 @@ with tab3:
 
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 4 — Secondary Sales Overview
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
 with tab4:
     st.header("Secondary Sales Overview")
 
@@ -512,6 +513,28 @@ with tab4:
         if selected:
             mask &= secondary[col_name].isin(selected)
 
+    # Month filter (month name only, no year). Detect a date-like column automatically.
+    date_candidates = [c for c in secondary.columns if any(k in c.lower() for k in ("date","invoice","trans","doc","created"))]
+    month_selected = None
+    if date_candidates:
+        date_col = date_candidates[0]
+        # Build month options lazily from the current mask to respect preceding filters
+        try:
+            months_ser = pd.to_datetime(secondary.loc[mask, date_col], errors='coerce').dt.month_name()
+            month_options_raw = months_ser.dropna().unique()
+            # order months Jan..Dec
+            month_order = list(calendar.month_name)[1:]
+            month_options = [m for m in month_order if m in month_options_raw]
+        except Exception:
+            month_options = []
+        if month_options:
+            month_selected = st.multiselect("Month", month_options, key="sec_month")
+            if month_selected:
+                # Apply month filter to mask (month name only)
+                month_ser_full = pd.to_datetime(secondary[date_col], errors='coerce').dt.month_name()
+                mask &= month_ser_full.isin(month_selected)
+
+    # Full-width Search bar on its own horizontal line
     search_sec = st.text_input("Search", key="sec_search")
 
     # Apply mask — avoid an unnecessary reset_index copy
