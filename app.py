@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from io import BytesIO
+# from io import BytesIO  # removed: unused import to reduce memory footprint
 import tempfile
 import os
 
@@ -112,9 +112,11 @@ def load_data():
                 # keep as datetime64[ns] normalized to date (midnight) to avoid Python object dtype
                 m[col] = pd.to_datetime(m[col], errors="coerce", dayfirst=True).dt.normalize()
         if "Quantity" in m.columns:
-            m["Quantity"] = pd.to_numeric(m["Quantity"], errors="coerce").fillna(0).astype(int)
+            tmp_qty = pd.to_numeric(m["Quantity"], errors="coerce").fillna(0)
+            m["Quantity"] = pd.to_numeric(tmp_qty, downcast="integer")
         if "Shelflife" in m.columns:
-            m["Shelflife"] = (pd.to_numeric(m["Shelflife"], errors="coerce") * 100).round().astype(int)
+            tmp_sl = (pd.to_numeric(m["Shelflife"], errors="coerce") * 100).round().fillna(0)
+            m["Shelflife"] = pd.to_numeric(tmp_sl, downcast="integer")
             m["SL Status"] = "Safe"
             m.loc[m["Shelflife"] < 30, "SL Status"] = "Critical"
             m.loc[(m["Shelflife"] >= 31) & (m["Shelflife"] <= 90), "SL Status"] = "Warning"
@@ -132,7 +134,8 @@ def load_data():
             r.loc[r["Days to BBD"] < 30, "BBD Status"] = "Critical"
             r.loc[(r["Days to BBD"] >= 31) & (r["Days to BBD"] <= 90), "BBD Status"] = "Warning"
         for col in r.select_dtypes(include="number").columns:
-            r[col] = pd.to_numeric(r[col], errors="coerce").fillna(0).round().astype(int)
+            tmp = pd.to_numeric(r[col], errors="coerce").fillna(0).round()
+            r[col] = pd.to_numeric(tmp, downcast="integer")
         datasets["risk"] = optimize_dtypes(r)
 
     # ── DISTRIBUTOR ───────────────────────────────────────────────────────
@@ -156,9 +159,11 @@ def load_data():
     if not sec.empty:
         qty_key = "Qty" if "Qty" in sec.columns else "QTY"
         if qty_key in sec.columns:
-            sec[qty_key] = pd.to_numeric(sec[qty_key], errors="coerce").fillna(0).astype(int)
+            tmp_qty = pd.to_numeric(sec[qty_key], errors="coerce").fillna(0)
+            sec[qty_key] = pd.to_numeric(tmp_qty, downcast="integer")
         if "NetRevenue" in sec.columns:
-            sec["NetRevenue"] = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0).astype(int)
+            tmp_rev = pd.to_numeric(sec["NetRevenue"], errors="coerce").fillna(0)
+            sec["NetRevenue"] = pd.to_numeric(tmp_rev, downcast="integer")
         # Apply dtype optimizations (convert low-cardinality strings to category, downcast nums)
         sec = optimize_dtypes(sec)
         datasets["secondary"] = sec
@@ -267,7 +272,8 @@ with tab1:
     c7.metric("Safe SL (>=90%)",    int(sl_safe))
 
     stock_site = filtered.groupby("Site", observed=True)["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-    fig = px.bar(stock_site, x="Site", y="Quantity", text="Quantity", title="Stock By Site")
+    stock_site_text = pd.to_numeric(stock_site["Quantity"].round(), downcast='integer')
+    fig = px.bar(stock_site, x="Site", y="Quantity", text=stock_site_text, title="Stock By Site")
     def _style_bar(fig):
         fig.update_traces(texttemplate='%{text:,}', textposition='outside')
         fig.update_yaxes(tickformat="d")
@@ -364,18 +370,18 @@ with tab2:
             "UNIT": total_qty.index,
             "TOTAL QTY": total_qty.values,
             "ITEMS": items.reindex(total_qty.index).values,
-            "CRITICAL BBD": critical_bbd.reindex(total_qty.index).fillna(0).astype(int).values,
-            "WARNING BBD": warning_bbd.reindex(total_qty.index).fillna(0).astype(int).values,
-            "SAFE BBD": safe_bbd.reindex(total_qty.index).fillna(0).astype(int).values,
-            "LEAKAGE WH": leakage.reindex(total_qty.index).fillna(0).astype(int).values,
+            "CRITICAL BBD": pd.to_numeric(critical_bbd.reindex(total_qty.index).fillna(0), downcast='integer').values,
+            "WARNING BBD": pd.to_numeric(warning_bbd.reindex(total_qty.index).fillna(0), downcast='integer').values,
+            "SAFE BBD": pd.to_numeric(safe_bbd.reindex(total_qty.index).fillna(0), downcast='integer').values,
+            "LEAKAGE WH": pd.to_numeric(leakage.reindex(total_qty.index).fillna(0), downcast='integer').values,
         })
         # Optional columns
         if "Days to SBD" in rf.columns:
             critical_sbd = rf[rf["Days to SBD"] < 30].groupby("Unit", observed=True)["Quantity"].sum()
-            breakdown_df["CRITICAL SBD"] = critical_sbd.reindex(total_qty.index).fillna(0).astype(int).values
+            breakdown_df["CRITICAL SBD"] = pd.to_numeric(critical_sbd.reindex(total_qty.index).fillna(0), downcast='integer').values
         if "Consumed inventory" in rf.columns:
             consumed = groups["Consumed inventory"].sum()
-            breakdown_df["CONSUMED INV"] = consumed.reindex(total_qty.index).fillna(0).astype(int).values
+            breakdown_df["CONSUMED INV"] = pd.to_numeric(consumed.reindex(total_qty.index).fillna(0), downcast='integer').values
 
         st.subheader("Plant Level Breakdown")
         st.dataframe(breakdown_df, hide_index=True, use_container_width=True)
@@ -432,19 +438,22 @@ with tab3:
 
         st.divider()
         stock_district = df.groupby("District", observed=True)["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-        fig_dist = px.bar(stock_district, x="District", y="Quantity", text=stock_district["Quantity"].astype(int), title="Stock by District")
+        stock_district_text = pd.to_numeric(stock_district["Quantity"].round(), downcast='integer')
+        fig_dist = px.bar(stock_district, x="District", y="Quantity", text=stock_district_text, title="Stock by District")
         fig_dist = _style_bar(fig_dist)
         st.plotly_chart(fig_dist, use_container_width=True)
 
         colA, colB = st.columns(2)
         with colA:
             sb = df.groupby("Brand", observed=True)["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-            fig_b = px.bar(sb, x="Brand", y="Quantity", text=sb["Quantity"].astype(int), title="Stock by Brand")
+            sb_text = pd.to_numeric(sb["Quantity"].round(), downcast='integer')
+            fig_b = px.bar(sb, x="Brand", y="Quantity", text=sb_text, title="Stock by Brand")
             fig_b = _style_bar(fig_b)
             st.plotly_chart(fig_b, use_container_width=True)
         with colB:
             sp = df.groupby("Pack Size", observed=True)["Quantity"].sum().reset_index().sort_values("Quantity", ascending=False)
-            fig_p = px.bar(sp, x="Pack Size", y="Quantity", text=sp["Quantity"].astype(int), title="Stock by Pack Size")
+            sp_text = pd.to_numeric(sp["Quantity"].round(), downcast='integer')
+            fig_p = px.bar(sp, x="Pack Size", y="Quantity", text=sp_text, title="Stock by Pack Size")
             fig_p = _style_bar(fig_p)
             st.plotly_chart(fig_p, use_container_width=True)
 
@@ -460,9 +469,9 @@ with tab3:
 
         breakdown_df = total_qty.reset_index().rename(columns={"Quantity":"Total Qty"})
         breakdown_df["Items"] = items.values
-        breakdown_df["Critical BBD"] = critical.reindex(total_qty.index).fillna(0).astype(int).values
-        breakdown_df["Warning BBD"] = warning.reindex(total_qty.index).fillna(0).astype(int).values
-        breakdown_df["Safe BBD"] = safe.reindex(total_qty.index).fillna(0).astype(int).values
+        breakdown_df["Critical BBD"] = pd.to_numeric(critical.reindex(total_qty.index).fillna(0), downcast='integer').values
+        breakdown_df["Warning BBD"] = pd.to_numeric(warning.reindex(total_qty.index).fillna(0), downcast='integer').values
+        breakdown_df["Safe BBD"] = pd.to_numeric(safe.reindex(total_qty.index).fillna(0), downcast='integer').values
 
         st.dataframe(breakdown_df, hide_index=True, use_container_width=True)
 
@@ -473,7 +482,7 @@ with tab3:
 
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 4 — Secondary Sales Overview
-# ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
 with tab4:
     st.header("Secondary Sales Overview")
 
@@ -536,14 +545,14 @@ with tab4:
     with colA:
         ap = cached_groupby_sum(idx_tuple, 'secondary', 'ASM', qty_col)
         ap = ap.sort_values(qty_col, ascending=False)
-        ap[qty_col] = ap[qty_col].round().astype(int)
+        ap[qty_col] = pd.to_numeric(ap[qty_col].round(), downcast='integer')
         fig_a = px.bar(ap, x="ASM", y=qty_col, text=qty_col, title="ASM Performance (Volume)")
         fig_a = _style_bar(fig_a)
         st.plotly_chart(fig_a, use_container_width=True)
     with colB:
         bp = cached_groupby_sum(idx_tuple, 'secondary', brand_col, qty_col)
         bp = bp.sort_values(qty_col, ascending=False)
-        bp[qty_col] = bp[qty_col].round().astype(int)
+        bp[qty_col] = pd.to_numeric(bp[qty_col].round(), downcast='integer')
         fig_b = px.bar(bp, x=brand_col, y=qty_col, text=qty_col, title="Brand Performance")
         fig_b = _style_bar(fig_b)
         st.plotly_chart(fig_b, use_container_width=True)
@@ -553,14 +562,14 @@ with tab4:
     with colC:
         cp = cached_groupby_sum(idx_tuple, 'secondary', 'Category', qty_col)
         cp = cp.sort_values(qty_col, ascending=False)
-        cp[qty_col] = cp[qty_col].round().astype(int)
+        cp[qty_col] = pd.to_numeric(cp[qty_col].round(), downcast='integer')
         fig_c = px.bar(cp, x="Category", y=qty_col, text=qty_col, title="Category Performance")
         fig_c = _style_bar(fig_c)
         st.plotly_chart(fig_c, use_container_width=True)
     with colD:
         pp = cached_groupby_sum(idx_tuple, 'secondary', 'Pack Size', qty_col)
         pp = pp.sort_values(qty_col, ascending=False)
-        pp[qty_col] = pp[qty_col].round().astype(int)
+        pp[qty_col] = pd.to_numeric(pp[qty_col].round(), downcast='integer')
         fig_p = px.bar(pp, x="Pack Size", y=qty_col, text=qty_col, title="Pack Size Performance")
         fig_p = _style_bar(fig_p)
         st.plotly_chart(fig_p, use_container_width=True)
@@ -569,13 +578,13 @@ with tab4:
     colE, colF = st.columns(2)
     with colE:
         vp = cached_groupby_sum(idx_tuple, 'secondary', 'VPO', qty_col)
-        vp[qty_col] = vp[qty_col].round().astype(int)
+        vp[qty_col] = pd.to_numeric(vp[qty_col].round(), downcast='integer')
         fig_v = px.pie(vp, names="VPO", values=qty_col, title="VPO Contribution")
         fig_v = _style_pie(fig_v)
         st.plotly_chart(fig_v, use_container_width=True)
     with colF:
         chp = cached_groupby_sum(idx_tuple, 'secondary', 'CustomerHierarchy', qty_col)
-        chp[qty_col] = chp[qty_col].round().astype(int)
+        chp[qty_col] = pd.to_numeric(chp[qty_col].round(), downcast='integer')
         fig_ch = px.pie(chp, names="CustomerHierarchy", values=qty_col, title="CustomerHierarchy Contribution")
         fig_ch = _style_pie(fig_ch)
         st.plotly_chart(fig_ch, use_container_width=True)
