@@ -88,7 +88,7 @@ def lazy_export_section(df, file_name: str, button_key: str):
 # -----------------------------
 # Load & prep all data — runs ONCE, cached forever
 # -----------------------------
-@st.cache_data
+@st.cache_data(show_spinner=False, max_entries=1)
 def load_data():
     files = {
         "master":      "Master Stock.xlsx",
