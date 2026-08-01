@@ -120,7 +120,7 @@ def load_data():
                                   .fillna(0).astype("int32"))
         if "Shelflife" in master.columns:
             sl = (pd.to_numeric(master["Shelflife"], errors="coerce") * 100).round()
-            master["Shelflife"] = sl.astype("int16")
+            master["Shelflife"] = sl.fillna(0).astype("int16")
             master["SL Status"] = pd.cut(
                 sl, bins=[-1, 30, 90, 100000],
                 labels=["Critical", "Warning", "Safe"], right=False
