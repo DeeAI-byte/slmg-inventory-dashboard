@@ -69,6 +69,35 @@ def _optimize(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize Excel/Arrow headers without changing the dashboard schema."""
+    df.columns = (df.columns.astype(str)
+                  .str.replace("\u00a0", " ", regex=False)
+                  .str.replace(r"\s+", " ", regex=True)
+                  .str.strip())
+    return df
+
+
+def _display_options(df: pd.DataFrame, column: str) -> list[str]:
+    """Return widget labels while keeping the source column's real dtype."""
+    if df.empty or column not in df.columns:
+        return []
+    return sorted({str(value) for value in df[column].dropna().unique()})
+
+
+def _selected_mask(series: pd.Series, selections: list[str]) -> pd.Series:
+    """Match string widget labels back to their typed source values.
+
+    Streamlit widgets always return the displayed string.  Comparing those
+    strings directly to numeric/category Arrow values can select zero rows.
+    """
+    if not selections:
+        return pd.Series(True, index=series.index)
+    lookup = {str(value): value for value in series.dropna().unique()}
+    values = [lookup[value] for value in selections if value in lookup]
+    return series.isin(values)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # DATA LOADING  — runs exactly once per session, cached permanently
 # ──────────────────────────────────────────────────────────────────────────────
@@ -84,10 +113,9 @@ def load_data():
                 df = pd.read_csv(path)
             else:
                 df = pd.read_excel(path)
-            df.columns = df.columns.str.strip()
-            return df
-        except Exception:
-            return pd.DataFrame()
+            return _clean_column_names(df)
+        except Exception as exc:
+            raise RuntimeError(f"Unable to load {path}") from exc
 
     master      = safe_read("Master Stock.xlsx")
     risk        = safe_read("Near Expiry iNVENTORY_.xlsx")
@@ -101,14 +129,17 @@ def load_data():
     try:
         import duckdb as _ddb
         _con = _ddb.connect("secondary.duckdb", read_only=True)
-        _arrow = _con.execute("SELECT * FROM secondary").to_arrow_table()
+        # DuckDB 1.0.0 supports fetch_arrow_table on an executed query.
+        # Keep the Arrow transfer so string columns are categoricals before
+        # pandas materialises them.
+        _arrow = _con.execute("SELECT * FROM secondary").fetch_arrow_table()
         secondary = _arrow.to_pandas(strings_to_categorical=True)
-        secondary.columns = secondary.columns.str.strip()
+        secondary = _clean_column_names(secondary)
         _con.close()
         del _con, _ddb, _arrow
         gc.collect()
-    except Exception:
-        secondary = pd.DataFrame()
+    except Exception as exc:
+        raise RuntimeError("Unable to load secondary.duckdb table 'secondary'") from exc
 
     # ── MASTER ───────────────────────────────────────────────────────────────
     if not master.empty:
@@ -153,6 +184,9 @@ def load_data():
 
     # ── DISTRIBUTOR ───────────────────────────────────────────────────────────
     if not distributor.empty:
+        # DBR uses BBD/Expiry while the rendering code uses EXP Date.
+        if "BBD/Expiry" in distributor.columns and "EXP Date" not in distributor.columns:
+            distributor.rename(columns={"BBD/Expiry": "EXP Date"}, inplace=True)
         for c in ["MFG Date", "BBD/Expiry"]:
             if c in distributor.columns:
                 distributor[c] = pd.to_datetime(distributor[c], errors="coerce", dayfirst=True)
@@ -165,6 +199,9 @@ def load_data():
                 bbd, bins=[-99999, 30, 90, 99999],
                 labels=["Critical", "Warning", "Safe"], right=False
             ).astype("category")
+        if "Quantity" in distributor.columns:
+            distributor["Quantity"] = (pd.to_numeric(distributor["Quantity"], errors="coerce")
+                                        .fillna(0).round().astype("int32"))
         scols = [c for c in ["SKU","Brand","Category","Pack Size","District","Distributor"] if c in distributor.columns]
         distributor["_search"] = (distributor[scols].fillna("").astype(str)
                                   .agg(" ".join, axis=1).str.lower())
@@ -198,16 +235,11 @@ def load_data():
                 secondary[c] = secondary[c].astype("category")
 
     # ── PRE-COMPUTE FILTER OPTIONS (never recomputed during reruns) ──────────
-    def opts(df, col):
-        if df.empty or col not in df.columns:
-            return []
-        return sorted(str(v) for v in df[col].dropna().unique())
-
     filter_opts = {
-        "m": {c: opts(master, c)      for c in ["Site","Warehouse","SKU","Brand","Category","Pack Size"]},
-        "r": {c: opts(risk, c)        for c in ["Unit","Warehouse","SKU"]},
-        "d": {c: opts(distributor, c) for c in ["District","Distributor","SKU","Brand","Pack Size"]},
-        "s": {c: opts(secondary, c)   for c in ["District","SM","ASM","Route","Distributor",
+        "m": {c: _display_options(master, c)      for c in ["Site","Warehouse","SKU","Brand","Category","Pack Size"]},
+        "r": {c: _display_options(risk, c)        for c in ["Unit","Warehouse","SKU"]},
+        "d": {c: _display_options(distributor, c) for c in ["District","Distributor","SKU","Brand","Pack Size"]},
+        "s": {c: _display_options(secondary, c)   for c in ["District","SM","ASM","Route","Distributor",
                                                   "Brand","Category","Pack Size","Month"]},
     }
 
@@ -252,12 +284,12 @@ def render_stock():
     with c8: search     = st.text_input("Search", key="t1_search")
 
     mask = pd.Series(True, index=master.index)
-    if sel_sites:  mask &= master["Site"].isin(sel_sites)
-    if sel_wh:     mask &= master["Warehouse"].isin(sel_wh)
-    if sel_skus:   mask &= master["SKU"].isin(sel_skus)
-    if sel_brands: mask &= master["Brand"].isin(sel_brands)
-    if sel_cats:   mask &= master["Category"].isin(sel_cats)
-    if sel_pack:   mask &= master["Pack Size"].isin(sel_pack)
+    if sel_sites:  mask &= _selected_mask(master["Site"], sel_sites)
+    if sel_wh:     mask &= _selected_mask(master["Warehouse"], sel_wh)
+    if sel_skus:   mask &= _selected_mask(master["SKU"], sel_skus)
+    if sel_brands: mask &= _selected_mask(master["Brand"], sel_brands)
+    if sel_cats:   mask &= _selected_mask(master["Category"], sel_cats)
+    if sel_pack:   mask &= _selected_mask(master["Pack Size"], sel_pack)
     if sel_sl:     mask &= master["SL Status"].isin(sel_sl)
     if search:     mask &= master["_search"].str.contains(search.lower(), na=False)
 
@@ -317,17 +349,17 @@ def render_risk():
     c1,c2,c3,c4,c5 = st.columns(5)
     with c1: sel_sites  = st.multiselect("Site",          OPTS["r"]["Unit"], key="t2_site")
     with c2:
-        wh = (risk.loc[risk["Unit"].isin(sel_sites), "Warehouse"].dropna().unique()
+        wh = (_display_options(risk.loc[_selected_mask(risk["Unit"], sel_sites)], "Warehouse")
               if sel_sites else OPTS["r"]["Warehouse"])
-        sel_wh = st.multiselect("Warehouse", sorted(wh), key="t2_wh")
+        sel_wh = st.multiselect("Warehouse", wh, key="t2_wh")
     with c3: sel_sku    = st.multiselect("SKU",           OPTS["r"]["SKU"],  key="t2_sku")
     with c4: sel_expiry = st.multiselect("Expiry Status", ["Critical","Warning","Safe"], key="t2_exp")
     with c5: search     = st.text_input("Search", key="t2_search")
 
     mask = pd.Series(True, index=risk.index)
-    if sel_sites:  mask &= risk["Unit"].isin(sel_sites)
-    if sel_wh:     mask &= risk["Warehouse"].isin(sel_wh)
-    if sel_sku:    mask &= risk["SKU"].isin(sel_sku)
+    if sel_sites:  mask &= _selected_mask(risk["Unit"], sel_sites)
+    if sel_wh:     mask &= _selected_mask(risk["Warehouse"], sel_wh)
+    if sel_sku:    mask &= _selected_mask(risk["SKU"], sel_sku)
     if sel_expiry: mask &= risk["BBD Status"].isin(sel_expiry)
     if search:     mask &= risk["_search"].str.contains(search.lower(), na=False)
 
@@ -369,17 +401,18 @@ def render_risk():
         safe_qty = rf["Quantity"].where(bbd > 90, 0),
         leak_qty = rf["Quantity"].where(rf["Warehouse"].astype(str).str.endswith("_101"), 0),
     )
+    if "Days to SBD" in rf2.columns:
+        rf2["crit_sbd_qty"] = rf2["Quantity"].where(rf2["Days to SBD"] < 30, 0)
     agg = rf2.groupby("Unit", observed=True).agg(
         **{"TOTAL QTY":      ("Quantity", "sum"),
            "ITEMS":          ("SKU",      "nunique"),
            "CRITICAL BBD":   ("crit_qty", "sum"),
            "WARNING BBD":    ("warn_qty", "sum"),
            "SAFE BBD":       ("safe_qty", "sum"),
-           "LEAKAGE WH":     ("leak_qty", "sum")}
+           "LEAKAGE WH":     ("leak_qty", "sum"),
+           **({"CRITICAL SBD": ("crit_sbd_qty", "sum")}
+              if "crit_sbd_qty" in rf2.columns else {})}
     ).reset_index().rename(columns={"Unit": "UNIT"})
-    if "Days to SBD" in rf2.columns:
-        agg["CRITICAL SBD"] = (rf2.groupby("Unit", observed=True)
-                               ["Quantity"].where(rf2["Days to SBD"] < 30, 0).sum().values)
     if "Consumed inventory" in rf2.columns:
         agg["CONSUMED INV"] = rf2.groupby("Unit", observed=True)["Consumed inventory"].sum().values
     st.subheader("Plant Level Breakdown")
@@ -405,9 +438,9 @@ def render_distributor():
     c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
     with c1: sel_dist   = st.multiselect("District",      OPTS["d"]["District"],    key="t3_dist")
     with c2:
-        db = (distributor.loc[distributor["District"].isin(sel_dist), "Distributor"].dropna().unique()
+        db = (_display_options(distributor.loc[_selected_mask(distributor["District"], sel_dist)], "Distributor")
               if sel_dist else OPTS["d"]["Distributor"])
-        sel_db = st.multiselect("Distributor", sorted(db), key="t3_db")
+        sel_db = st.multiselect("Distributor", db, key="t3_db")
     with c3: sel_sku    = st.multiselect("SKU",           OPTS["d"]["SKU"],         key="t3_sku")
     with c4: sel_brand  = st.multiselect("Brand",         OPTS["d"]["Brand"],       key="t3_brand")
     with c5: sel_pack   = st.multiselect("Pack Size",     OPTS["d"]["Pack Size"],   key="t3_pack")
@@ -415,11 +448,11 @@ def render_distributor():
     with c7: search     = st.text_input("Search", key="t3_search")
 
     mask = pd.Series(True, index=distributor.index)
-    if sel_dist:   mask &= distributor["District"].isin(sel_dist)
-    if sel_db:     mask &= distributor["Distributor"].isin(sel_db)
-    if sel_sku:    mask &= distributor["SKU"].isin(sel_sku)
-    if sel_brand:  mask &= distributor["Brand"].isin(sel_brand)
-    if sel_pack:   mask &= distributor["Pack Size"].isin(sel_pack)
+    if sel_dist:   mask &= _selected_mask(distributor["District"], sel_dist)
+    if sel_db:     mask &= _selected_mask(distributor["Distributor"], sel_db)
+    if sel_sku:    mask &= _selected_mask(distributor["SKU"], sel_sku)
+    if sel_brand:  mask &= _selected_mask(distributor["Brand"], sel_brand)
+    if sel_pack:   mask &= _selected_mask(distributor["Pack Size"], sel_pack)
     if sel_expiry: mask &= distributor["BBD Status"].isin(sel_expiry)
     if search:     mask &= distributor["_search"].str.contains(search.lower(), na=False)
 
@@ -510,22 +543,21 @@ def render_secondary():
     mask = pd.Series(True, index=secondary.index)
     for (col_name, wkey), col in zip(cascade, cols):
         with col:
-            opts = sorted(str(v) for v in secondary.loc[mask, col_name].dropna().unique())
+            opts = _display_options(secondary.loc[mask], col_name)
             sel  = st.multiselect(col_name, opts, key=wkey)
         if sel:
-            mask &= secondary[col_name].isin(sel)
+            mask &= _selected_mask(secondary[col_name], sel)
 
     # Row 2 — Month + Search on same horizontal line
     m_col, s_col = st.columns([1, 3])
     with m_col:
-        month_opts = sorted(str(v) for v in secondary.loc[mask, "Month"].dropna().unique()) \
-                     if "Month" in secondary.columns else []
+        month_opts = _display_options(secondary.loc[mask], "Month")
         sel_month = st.multiselect("Month", month_opts, key="s4_month")
     with s_col:
         search = st.text_input("Search", key="s4_search")
 
     if sel_month:
-        mask &= secondary["Month"].isin(sel_month)
+        mask &= _selected_mask(secondary["Month"], sel_month)
     if search:
         mask &= secondary["_search"].str.contains(search.lower(), na=False)
 
