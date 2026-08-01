@@ -225,7 +225,7 @@ def load_data():
         # pre-built search string
         scols = [c for c in ["District","SM","ASM","Route","Distributor","Brand",
                               "Category","Pack Size","Outlet","ITEMNAME"] if c in secondary.columns]
-        secondary["_search"] = (secondary[scols].fillna("").astype(str)
+        secondary["_search"] = (secondary[scols].astype("string").fillna("")
                                 .agg(" ".join, axis=1).str.lower())
 
         # convert low-cardinality columns to category
