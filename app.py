@@ -87,6 +87,17 @@ def _selected_mask(series: pd.Series, selections: list[str]) -> pd.Series:
     return series.isin(values)
 
 
+def _search_mask(df: pd.DataFrame, columns: list[str], query: str) -> pd.Series:
+    """Search one column at a time so no full-table text column is retained."""
+    mask = pd.Series(False, index=df.index)
+    needle = query.lower()
+    for column in columns:
+        if column in df.columns:
+            mask |= (df[column].astype("string").str.lower()
+                     .str.contains(needle, na=False))
+    return mask
+
+
 def _to_int32(series: pd.Series) -> pd.Series:
     return (
         pd.to_numeric(series, errors="coerce")
@@ -106,7 +117,7 @@ def _require_columns(df: pd.DataFrame, columns: list[str], dashboard: str) -> bo
     return True
 
 
-@st.cache_data(show_spinner="Loading data…", max_entries=1)
+@st.cache_resource(show_spinner="Loading data…")
 def load_data():
 
     def safe_read(path: str) -> pd.DataFrame:
@@ -248,23 +259,12 @@ def load_data():
                 secondary[c] = 0
             secondary[c] = _to_int32(secondary[c])
 
-        scols = [
-            c for c in [
-                "District", "SM", "ASM", "Route", "Distributor", "Brand",
-                "Category", "Pack Size", "Outlet", "ITEMNAME",
-            ]
-            if c in secondary.columns
-        ]
-        secondary["_search"] = (
-            secondary[scols].astype("string").fillna("").agg(" ".join, axis=1).str.lower()
-        )
-
         for c in [
             "District", "SM", "ASM", "STL", "Route", "Distributor", "Brand",
             "Category", "Pack Size", "VPO", "Channel", "SubChannel", "Month",
             "CustomerHierarchy", "IPS",
         ]:
-            if c in secondary.columns:
+            if c in secondary.columns and not isinstance(secondary[c].dtype, pd.CategoricalDtype):
                 secondary[c] = secondary[c].astype("category")
 
     filter_opts = {
@@ -737,7 +737,7 @@ def render_secondary():
         [
             "District", "SM", "ASM", "Route", "Distributor", "Brand", "Category",
             "Pack Size", "Month", "Outlet", "VPO", "CustomerHierarchy", "QTY",
-            "NetRevenue", "_search",
+            "NetRevenue",
         ],
         "Secondary Sales Overview",
     ):
@@ -774,7 +774,12 @@ def render_secondary():
     if sel_month:
         mask &= _selected_mask(secondary["Month"], sel_month)
     if search:
-        mask &= secondary["_search"].str.contains(search.lower(), na=False)
+        mask &= _search_mask(
+            secondary,
+            ["District", "SM", "ASM", "Route", "Distributor", "Brand",
+             "Category", "Pack Size", "Outlet", "ITEMNAME"],
+            search,
+        )
 
     df = secondary.loc[mask]
 
